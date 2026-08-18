@@ -100,7 +100,6 @@ CREATE TABLE IF NOT EXISTS user_promos (
 async def init_db(db):
     """Инициализировать все таблицы БД"""
     try:
-        # Создаем таблицы (без удаления!)
         await db.execute(CREATE_USERS_TABLE)
         await db.execute(CREATE_FAMILIES_TABLE)
         await db.execute(CREATE_CHILDREN_TABLE)
@@ -166,7 +165,7 @@ async def update_user_gender(db, user_id: int, gender: str):
         raise
 
 async def update_balance(db, user_id: int, amount: int):
-    """Обновить баланс пользователя"""
+    """Обновить баланс пользователя (добавить или отнять монеты)"""
     try:
         await db.execute(
             "UPDATE users SET balance = balance + $1 WHERE user_id = $2",
@@ -178,7 +177,7 @@ async def update_balance(db, user_id: int, amount: int):
         raise
 
 async def update_stars(db, user_id: int, amount: int):
-    """Обновить звёзды пользователя"""
+    """Обновить звёзды пользователя (добавить или отнять звёзды)"""
     try:
         await db.execute(
             "UPDATE users SET stars = stars + $1 WHERE user_id = $2",
@@ -188,3 +187,89 @@ async def update_stars(db, user_id: int, amount: int):
     except Exception as e:
         logger.error(f"❌ Ошибка обновления звёзд: {e}")
         raise
+
+async def update_stats(db, user_id: int, game_type: str, won: bool):
+    """Обновить статистику игр пользователя"""
+    try:
+        # Общая статистика
+        await db.execute(
+            """
+            UPDATE users 
+            SET total_games = total_games + 1,
+                wins = wins + $1,
+                losses = losses + $2
+            WHERE user_id = $3
+            """,
+            1 if won else 0,
+            0 if won else 1,
+            user_id
+        )
+        
+        # Статистика по конкретной игре
+        if game_type == "roulette":
+            await db.execute(
+                """
+                UPDATE users 
+                SET roulette_games = roulette_games + 1,
+                    roulette_wins = roulette_wins + $1
+                WHERE user_id = $2
+                """,
+                1 if won else 0,
+                user_id
+            )
+        elif game_type == "duel":
+            await db.execute(
+                """
+                UPDATE users 
+                SET duel_games = duel_games + 1,
+                    duel_wins = duel_wins + $1
+                WHERE user_id = $2
+                """,
+                1 if won else 0,
+                user_id
+            )
+        elif game_type == "cat":
+            await db.execute(
+                """
+                UPDATE users 
+                SET cat_games = cat_games + 1,
+                    cat_wins = cat_wins + $1
+                WHERE user_id = $2
+                """,
+                1 if won else 0,
+                user_id
+            )
+        elif game_type == "casino":
+            await db.execute(
+                """
+                UPDATE users 
+                SET casino_games = casino_games + 1,
+                    casino_wins = casino_wins + $1
+                WHERE user_id = $2
+                """,
+                1 if won else 0,
+                user_id
+            )
+        
+        logger.info(f"✅ Статистика пользователя {user_id} обновлена")
+    except Exception as e:
+        logger.error(f"❌ Ошибка обновления статистики: {e}")
+        raise
+
+async def get_top_users(db, limit: int = 10):
+    """Получить топ пользователей по победам"""
+    try:
+        users = await db.fetch(
+            """
+            SELECT user_id, username, custom_nick, wins, total_games, balance, stars
+            FROM users
+            WHERE is_hidden = FALSE
+            ORDER BY wins DESC
+            LIMIT $1
+            """,
+            limit
+        )
+        return users
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения топа: {e}")
+        return []

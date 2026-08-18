@@ -1,24 +1,29 @@
 import asyncio
+import logging
+
 from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
-from config import config
-from db import Database
+import config
 from routers.users import router as users_router
-
-bot = Bot(token=config.bot_token, parse_mode=ParseMode.HTML)
-dp = Dispatcher()
-db = Database(config.database_url)
 
 
 async def main():
-    await db.connect()
-    await db.init_db()
+    logging.basicConfig(level=logging.INFO)
 
-    dp["db"] = db
+    bot = Bot(
+        token=config.bot_token,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+    )
+
+    dp = Dispatcher()
     dp.include_router(users_router)
 
-    await dp.start_polling(bot)
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await bot.session.close()
 
 
 if __name__ == "__main__":

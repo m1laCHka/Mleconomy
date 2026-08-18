@@ -9,7 +9,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from config import BOT_TOKEN, PORT
 from database.db import db
 from database.models import init_db
-from handlers import start, profile, help, admin
+from handlers import start, profile, help, admin, roulette
 from utils.logger import logger
 
 async def health_check(request):
@@ -24,7 +24,7 @@ async def main():
         logger.info("🔗 Подключение к БД...")
         await db.connect()
         
-        # Инициализируем БД (удалит старые таблицы и создаст новые)
+        # Инициализируем БД (создаем таблицы, если их нет)
         logger.info("🗄️ Инициализация БД...")
         await init_db(db)
         
@@ -39,6 +39,7 @@ async def main():
         dp.include_router(profile.router)
         dp.include_router(help.router)
         dp.include_router(admin.router)
+        dp.include_router(roulette.router)
         
         # Создаем веб-сервер для Render
         app = web.Application()

@@ -186,7 +186,6 @@ def get_bet_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="🎯 Число", callback_data="bet_number"),
         ],
         [
-            InlineKeyboardButton(text="📊 Мои ставки", callback_data="my_bets"),
             InlineKeyboardButton(text="❌ Отмена", callback_data="bet_cancel"),
         ]
     ])

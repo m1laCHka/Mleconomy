@@ -32,13 +32,12 @@ class RouletteGame:
         self.chat_id = chat_id
         self.creator_id = creator_id
         self.creator_name = creator_name
-        self.bot = bot  # Сохраняем bot
+        self.bot = bot
         self.bets = []
         self.is_active = True
         self.message_id = None
         self.timer_task = None
-        self.remaining_time = GAME_TIMER
-        self.started_at = datetime.now()
+        self.started_at = datetime.now()  # Время начала игры
     
     def add_bet(self, user_id: int, username: str, bet_type: str, amount: int, number: int = None):
         """Добавить ставку"""
@@ -100,7 +99,7 @@ class RouletteGame:
         return text
     
     def get_remaining_seconds(self) -> int:
-        """Получить оставшееся время"""
+        """Получить оставшееся время (не сбрасывается)"""
         elapsed = (datetime.now() - self.started_at).total_seconds()
         remaining = GAME_TIMER - elapsed
         return max(0, int(remaining))
@@ -275,7 +274,6 @@ async def finish_roulette_game(chat_id: int):
                 await update_stats(db, bet["user_id"], "roulette", False)
                 results.append(f"❌ @{bet['username']}: -{bet['amount']}💰 ({get_bet_type_text(bet['bet_type'], bet['number'])})")
         
-        # Формируем сообщение
         if results:
             results_text = "\n".join(results)
         else:
@@ -289,7 +287,7 @@ async def finish_roulette_game(chat_id: int):
             f"━━━━━━━━━━━━━━━━━━━━"
         )
         
-        # Отправляем результат с фото (используем game.bot)
+        # Отправляем результат с фото
         await game.bot.send_photo(
             chat_id=chat_id,
             photo=ROULETTE_RESULT_PHOTO,
@@ -313,21 +311,24 @@ async def roulette_start(message: Message):
             return
         
         chat_id = message.chat.id
-        bot = message.bot  # Получаем bot из message
+        bot = message.bot
         
         # Проверяем, идет ли уже игра
         if chat_id in active_games and active_games[chat_id].is_active:
             game = active_games[chat_id]
             
-            # Перезапускаем таймер
-            game.started_at = datetime.now()
-            if game.timer_task:
-                game.timer_task.cancel()
-            game.timer_task = asyncio.create_task(finish_game_after_timer(chat_id))
-            
+            # НЕ сбрасываем таймер! Просто показываем оставшееся время
             remaining = game.get_remaining_seconds()
+            
+            if remaining <= 0:
+                # Если время вышло, завершаем игру
+                await finish_roulette_game(chat_id)
+                await message.answer("🎰 Игра завершена! Начинаем новую...")
+                # Создаем новую игру
+                return await roulette_start(message)
+            
             await message.answer(
-                f"⏳ Таймер обновлен! Осталось: {remaining} секунд"
+                f"⏳ Игра уже идет! Осталось: {remaining} секунд"
             )
             await update_game_message(game)
             return
@@ -456,7 +457,6 @@ async def amount_bet(message: Message):
             await message.answer(f"❌ Минимальная ставка: {MIN_BET}💰")
             return
         
-        # Проверяем баланс
         user = await get_user(db, message.from_user.id)
         if not user:
             await message.answer("❌ Сначала пройди регистрацию через /start")
@@ -466,7 +466,6 @@ async def amount_bet(message: Message):
             await message.answer(f"❌ Недостаточно монет! У тебя: {user['balance']}💰")
             return
         
-        # Определяем тип
         if bet_type_str in ["красное"]:
             bet_type = "red"
         elif bet_type_str in ["черное"]:
@@ -480,10 +479,8 @@ async def amount_bet(message: Message):
         else:
             return
         
-        # Списываем
         await update_balance(db, message.from_user.id, -amount)
         
-        # Добавляем ставку
         username = message.from_user.username or message.from_user.first_name
         success, msg_text = game.add_bet(message.from_user.id, username, bet_type, amount)
         
@@ -493,8 +490,6 @@ async def amount_bet(message: Message):
             return
         
         await message.answer(f"✅ {msg_text}")
-        
-        # Обновляем сообщение с ставками
         await update_game_message(game)
         
     except Exception as e:
@@ -553,8 +548,6 @@ async def number_bet(message: Message):
             return
         
         await message.answer(f"✅ {msg_text}")
-        
-        # Обновляем сообщение
         await update_game_message(game)
         
     except Exception as e:

@@ -1,12 +1,16 @@
 # database/models.py
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 CREATE_USERS_TABLE = """
 CREATE TABLE IF NOT EXISTS users (
     user_id BIGINT PRIMARY KEY,
     username VARCHAR(255),
     custom_nick VARCHAR(255) DEFAULT NULL,
     gender VARCHAR(10),
-    balance BIGINT DEFAULT 1000,
+    balance BIGINT DEFAULT 500,
     stars INT DEFAULT 10,
     is_vip BOOLEAN DEFAULT FALSE,
     vip_until TIMESTAMP DEFAULT NULL,
@@ -96,15 +100,25 @@ CREATE TABLE IF NOT EXISTS user_promos (
 async def init_db(db):
     """Инициализировать все таблицы БД"""
     try:
+        # Удаляем старую таблицу users (если есть проблемы)
+        await db.execute("DROP TABLE IF EXISTS users CASCADE")
+        await db.execute("DROP TABLE IF EXISTS families CASCADE")
+        await db.execute("DROP TABLE IF EXISTS children CASCADE")
+        await db.execute("DROP TABLE IF EXISTS achievements CASCADE")
+        await db.execute("DROP TABLE IF EXISTS promos CASCADE")
+        await db.execute("DROP TABLE IF EXISTS user_promos CASCADE")
+        
+        # Создаем все таблицы заново
         await db.execute(CREATE_USERS_TABLE)
         await db.execute(CREATE_FAMILIES_TABLE)
         await db.execute(CREATE_CHILDREN_TABLE)
         await db.execute(CREATE_ACHIEVEMENTS_TABLE)
         await db.execute(CREATE_PROMOS_TABLE)
         await db.execute(CREATE_USER_PROMOS_TABLE)
-        print("✅ Все таблицы созданы успешно")
+        
+        logger.info("✅ Все таблицы созданы успешно")
     except Exception as e:
-        print(f"❌ Ошибка инициализации БД: {e}")
+        logger.error(f"❌ Ошибка инициализации БД: {e}")
         raise
 
 async def user_exists(db, user_id: int) -> bool:
@@ -116,22 +130,24 @@ async def user_exists(db, user_id: int) -> bool:
         )
         return result is not None
     except Exception as e:
-        print(f"❌ Ошибка проверки пользователя: {e}")
+        logger.error(f"❌ Ошибка проверки пользователя: {e}")
         return False
 
 async def create_user(db, user_id: int, username: str, gender: str = None):
     """Создать нового пользователя"""
     try:
+        # Проверяем, какие поля есть в таблице
         await db.execute(
             """
             INSERT INTO users (user_id, username, gender, balance, stars)
-            VALUES ($1, $2, $3, 1000, 10)
+            VALUES ($1, $2, $3, 500, 10)
             """,
             user_id, username, gender
         )
-        print(f"✅ Пользователь {user_id} создан")
+        logger.info(f"✅ Пользователь {user_id} создан с балансом 500 монет и 10 звёзд")
+        return True
     except Exception as e:
-        print(f"❌ Ошибка создания пользователя: {e}")
+        logger.error(f"❌ Ошибка создания пользователя: {e}")
         raise
 
 async def get_user(db, user_id: int):
@@ -143,7 +159,7 @@ async def get_user(db, user_id: int):
         )
         return user
     except Exception as e:
-        print(f"❌ Ошибка получения профиля: {e}")
+        logger.error(f"❌ Ошибка получения профиля: {e}")
         return None
 
 async def update_user_gender(db, user_id: int, gender: str):
@@ -153,117 +169,31 @@ async def update_user_gender(db, user_id: int, gender: str):
             "UPDATE users SET gender = $1 WHERE user_id = $2",
             gender, user_id
         )
-        print(f"✅ Пол пользователя {user_id} обновлён на {gender}")
+        logger.info(f"✅ Пол пользователя {user_id} обновлён на {gender}")
     except Exception as e:
-        print(f"❌ Ошибка обновления пола: {e}")
+        logger.error(f"❌ Ошибка обновления пола: {e}")
         raise
 
 async def update_balance(db, user_id: int, amount: int):
-    """Обновить баланс пользователя (добавить или отнять)"""
+    """Обновить баланс пользователя"""
     try:
         await db.execute(
             "UPDATE users SET balance = balance + $1 WHERE user_id = $2",
             amount, user_id
         )
-        print(f"✅ Баланс пользователя {user_id} обновлён на {amount}")
+        logger.info(f"✅ Баланс пользователя {user_id} обновлён на {amount}")
     except Exception as e:
-        print(f"❌ Ошибка обновления баланса: {e}")
+        logger.error(f"❌ Ошибка обновления баланса: {e}")
         raise
 
 async def update_stars(db, user_id: int, amount: int):
-    """Обновить звёзды пользователя (добавить или отнять)"""
+    """Обновить звёзды пользователя"""
     try:
         await db.execute(
             "UPDATE users SET stars = stars + $1 WHERE user_id = $2",
             amount, user_id
         )
-        print(f"✅ Звёзды пользователя {user_id} обновлены на {amount}")
+        logger.info(f"✅ Звёзды пользователя {user_id} обновлены на {amount}")
     except Exception as e:
-        print(f"❌ Ошибка обновления звёзд: {e}")
+        logger.error(f"❌ Ошибка обновления звёзд: {e}")
         raise
-
-async def update_stats(db, user_id: int, game_type: str, won: bool):
-    """Обновить статистику игр"""
-    try:
-        # Общая статистика
-        await db.execute(
-            """
-            UPDATE users 
-            SET total_games = total_games + 1,
-                wins = wins + $1,
-                losses = losses + $2
-            WHERE user_id = $3
-            """,
-            1 if won else 0,
-            0 if won else 1,
-            user_id
-        )
-        
-        # Статистика по конкретной игре
-        if game_type == "roulette":
-            await db.execute(
-                """
-                UPDATE users 
-                SET roulette_games = roulette_games + 1,
-                    roulette_wins = roulette_wins + $1
-                WHERE user_id = $2
-                """,
-                1 if won else 0,
-                user_id
-            )
-        elif game_type == "duel":
-            await db.execute(
-                """
-                UPDATE users 
-                SET duel_games = duel_games + 1,
-                    duel_wins = duel_wins + $1
-                WHERE user_id = $2
-                """,
-                1 if won else 0,
-                user_id
-            )
-        elif game_type == "cat":
-            await db.execute(
-                """
-                UPDATE users 
-                SET cat_games = cat_games + 1,
-                    cat_wins = cat_wins + $1
-                WHERE user_id = $2
-                """,
-                1 if won else 0,
-                user_id
-            )
-        elif game_type == "casino":
-            await db.execute(
-                """
-                UPDATE users 
-                SET casino_games = casino_games + 1,
-                    casino_wins = casino_wins + $1
-                WHERE user_id = $2
-                """,
-                1 if won else 0,
-                user_id
-            )
-        
-        print(f"✅ Статистика пользователя {user_id} обновлена")
-    except Exception as e:
-        print(f"❌ Ошибка обновления статистики: {e}")
-        raise
-
-async def get_top_users(db, limit: int = 10):
-    """Получить топ пользователей по победам"""
-    try:
-        users = await db.fetch(
-            """
-            SELECT user_id, username, custom_nick, wins, total_games, balance, stars
-            FROM users
-            WHERE is_hidden = FALSE
-            ORDER BY wins DESC
-            LIMIT $1
-            """,
-            limit
-        )
-        return users
-    except Exception as e:
-        print(f"❌ Ошибка получения топа: {e}")
-        return []

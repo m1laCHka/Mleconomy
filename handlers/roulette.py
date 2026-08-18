@@ -8,38 +8,58 @@ from database.db import db
 from database.models import get_user, update_balance, update_stats
 import random
 import asyncio
-from datetime import datetime, timedelta
 
 router = Router()
 
 # Константы
 MIN_BET = 50
-GAME_TIMER = 60  # секунд на ставки
+GAME_TIMER = 60  # секунд
+COMMISSION = 0.10  # 10% комиссия
+
+# Фото для результата рулетки
+ROULETTE_RESULT_PHOTO = "https://i.ibb.co/Rpnv0nxh/237437bd-7bef-4f31-83ae-19b0457bca2f.jpg"
+
+# Числа и цвета (0-21)
+RED_NUMBERS = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21]
+BLACK_NUMBERS = [2, 4, 6, 8, 10, 11, 13, 15, 17, 20]
 
 # Хранилище активных игр
 active_games = {}
 
-# Числа и цвета
-RED_NUMBERS = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]
-BLACK_NUMBERS = [2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35]
-
 class RouletteGame:
-    def __init__(self, chat_id: int, creator_id: int, creator_name: str, min_bet: int):
+    def __init__(self, chat_id: int, creator_id: int, creator_name: str):
         self.chat_id = chat_id
         self.creator_id = creator_id
         self.creator_name = creator_name
-        self.min_bet = min_bet
-        self.bets = []  # [{"user_id": id, "username": name, "bet_type": type, "amount": amount, "number": num}]
+        self.bets = []
         self.is_active = True
         self.message_id = None
         self.timer_task = None
+        self.remaining_time = GAME_TIMER
     
     def add_bet(self, user_id: int, username: str, bet_type: str, amount: int, number: int = None):
-        """Добавить ставку игрока"""
-        # Проверяем, не ставил ли уже этот игрок
-        for bet in self.bets:
-            if bet["user_id"] == user_id:
-                return False, "Ты уже сделал ставку!"
+        """Добавить ставку"""
+        user_bets = [b for b in self.bets if b["user_id"] == user_id]
+        
+        if bet_type == "number":
+            number_bets = [b for b in user_bets if b["bet_type"] == "number"]
+            if len(number_bets) >= 3:
+                return False, "❌ Максимум 3 ставки на числа!"
+        
+        if bet_type in ["red", "black"]:
+            color_bets = [b for b in user_bets if b["bet_type"] in ["red", "black"]]
+            if color_bets:
+                return False, "❌ Ты уже поставил на цвет!"
+        
+        if bet_type in ["even", "odd"]:
+            parity_bets = [b for b in user_bets if b["bet_type"] in ["even", "odd"]]
+            if parity_bets:
+                return False, "❌ Ты уже поставил на чет/нечет!"
+        
+        if bet_type == "zero":
+            zero_bets = [b for b in user_bets if b["bet_type"] == "zero"]
+            if zero_bets:
+                return False, "❌ Ты уже поставил на зеро!"
         
         self.bets.append({
             "user_id": user_id,
@@ -48,7 +68,7 @@ class RouletteGame:
             "amount": amount,
             "number": number
         })
-        return True, "Ставка принята!"
+        return True, "✅ Ставка принята!"
     
     def get_bets_text(self) -> str:
         """Получить текст со ставками"""
@@ -60,10 +80,22 @@ class RouletteGame:
             bet_text = get_bet_type_text(bet["bet_type"], bet["number"])
             text += f"• @{bet['username']}: {bet_text} — {bet['amount']}💰\n"
         return text
+    
+    def get_user_bets_text(self, user_id: int) -> str:
+        """Получить ставки конкретного пользователя"""
+        user_bets = [b for b in self.bets if b["user_id"] == user_id]
+        if not user_bets:
+            return "У тебя нет ставок"
+        
+        text = "📊 Твои ставки:\n\n"
+        for bet in user_bets:
+            bet_text = get_bet_type_text(bet["bet_type"], bet["number"])
+            text += f"• {bet_text} — {bet['amount']}💰\n"
+        return text
 
 def spin_roulette() -> dict:
-    """Крутить рулетку"""
-    number = random.randint(0, 36)
+    """Крутить рулетку (0-21)"""
+    number = random.randint(0, 21)
     
     if number == 0:
         color = "zero"
@@ -81,27 +113,26 @@ def spin_roulette() -> dict:
     }
 
 def calculate_win(bet_type: str, amount: int, number: int, result: dict) -> int:
-    """Рассчитать выигрыш"""
-    if bet_type == "red" and result["color"] == "red":
-        return amount * 2
-    elif bet_type == "black" and result["color"] == "black":
-        return amount * 2
-    elif bet_type == "zero" and result["number"] == 0:
-        return amount * 100
-    elif bet_type == "even" and result["is_even"] == True:
-        return amount * 2
-    elif bet_type == "odd" and result["is_even"] == False:
-        return amount * 2
-    elif bet_type == "number" and number == result["number"]:
-        return amount * 50
-    elif bet_type == "dozen1" and 1 <= result["number"] <= 12:
-        return amount * 3
-    elif bet_type == "dozen2" and 13 <= result["number"] <= 24:
-        return amount * 3
-    elif bet_type == "dozen3" and 25 <= result["number"] <= 36:
-        return amount * 3
+    """Рассчитать выигрыш (с учетом комиссии 10%)"""
+    win = 0
     
-    return 0
+    if bet_type == "red" and result["color"] == "red":
+        win = amount * 2
+    elif bet_type == "black" and result["color"] == "black":
+        win = amount * 2
+    elif bet_type == "zero" and result["number"] == 0:
+        win = amount * 22
+    elif bet_type == "even" and result["is_even"] == True:
+        win = amount * 2
+    elif bet_type == "odd" and result["is_even"] == False:
+        win = amount * 2
+    elif bet_type == "number" and number == result["number"]:
+        win = amount * 22
+    
+    if win > 0:
+        win = int(win * (1 - COMMISSION))
+    
+    return win
 
 def get_bet_type_text(bet_type: str, number: int = None) -> str:
     """Получить текст ставки"""
@@ -117,12 +148,6 @@ def get_bet_type_text(bet_type: str, number: int = None) -> str:
         return "🔢 Нечетное"
     elif bet_type == "number":
         return f"🎯 Число {number}"
-    elif bet_type == "dozen1":
-        return "🎲 Дюжина 1"
-    elif bet_type == "dozen2":
-        return "🎲 Дюжина 2"
-    elif bet_type == "dozen3":
-        return "🎲 Дюжина 3"
     return "Неизвестно"
 
 def get_result_text(result: dict) -> str:
@@ -147,6 +172,10 @@ def get_bet_keyboard() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(text="🔢 Нечет", callback_data="bet_odd"),
+            InlineKeyboardButton(text="🎯 Число", callback_data="bet_number"),
+        ],
+        [
+            InlineKeyboardButton(text="📊 Мои ставки", callback_data="my_bets"),
             InlineKeyboardButton(text="❌ Отмена", callback_data="bet_cancel"),
         ]
     ])
@@ -178,51 +207,44 @@ async def save_roulette_log(chat_id: int, result: dict):
 async def roulette_start(message: Message):
     """Начать игру в рулетку"""
     try:
-        parts = message.text.split()
+        chat_id = message.chat.id
         
-        # Проверяем, не идет ли уже игра
-        if message.chat.id in active_games and active_games[message.chat.id].is_active:
-            await message.answer("❌ В этом чате уже идет игра в рулетку!")
+        # Проверяем, идет ли уже игра
+        if chat_id in active_games and active_games[chat_id].is_active:
+            game = active_games[chat_id]
+            # Обновляем таймер
+            game.remaining_time = GAME_TIMER
+            if game.timer_task:
+                game.timer_task.cancel()
+            game.timer_task = asyncio.create_task(finish_game_after_timer(chat_id))
+            
+            await message.answer(
+                f"⏳ Время обновлено! Осталось: {game.remaining_time} секунд"
+            )
             return
         
-        # Определяем минимальную ставку
-        min_bet = MIN_BET
-        if len(parts) > 1:
-            try:
-                min_bet = max(MIN_BET, int(parts[1]))
-            except:
-                pass
-        
-        # Создаем игру
+        # Создаем новую игру
         username = message.from_user.username or message.from_user.first_name
-        game = RouletteGame(
-            chat_id=message.chat.id,
-            creator_id=message.from_user.id,
-            creator_name=username,
-            min_bet=min_bet
-        )
-        
-        # Сохраняем игру
-        active_games[message.chat.id] = game
+        game = RouletteGame(chat_id, message.from_user.id, username)
+        active_games[chat_id] = game
         
         # Отправляем сообщение
         msg = await message.answer(
-            f"╔══════════════════════╗\n"
-            f"║      🎰 РУЛЕТКА      ║\n"
-            f"╚══════════════════════╝\n\n"
+            f"🎰 РУЛЕТКА\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n\n"
             f"🎮 Игра создана!\n"
             f"👤 Организатор: @{username}\n"
-            f"💰 Минимальная ставка: {min_bet} монет\n"
-            f"⏳ Время на ставки: {GAME_TIMER} секунд\n\n"
+            f"💰 Минимальная ставка: {MIN_BET} монет\n"
+            f"⏳ Время на ставки: {GAME_TIMER} секунд\n"
+            f"💸 Комиссия: 10%\n\n"
             f"📊 Текущие ставки: нет\n\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━",
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"Нажми на кнопку, чтобы сделать ставку:",
             reply_markup=get_bet_keyboard()
         )
         
         game.message_id = msg.message_id
-        
-        # Запускаем таймер
-        game.timer_task = asyncio.create_task(finish_game_after_timer(message.chat.id))
+        game.timer_task = asyncio.create_task(finish_game_after_timer(chat_id))
         
     except Exception as e:
         print(f"❌ Ошибка создания игры: {e}")
@@ -252,8 +274,8 @@ async def finish_roulette_game(chat_id: int):
         
         # Рассчитываем результаты
         result_text = get_result_text(result)
-        
         results = []
+        
         for bet in game.bets:
             win_amount = calculate_win(bet["bet_type"], bet["amount"], bet["number"], result)
             
@@ -271,26 +293,20 @@ async def finish_roulette_game(chat_id: int):
         else:
             results_text = "Никто не сделал ставку"
         
-        final_message = f"""
-╔══════════════════════╗
-║      🎰 РУЛЕТКА      ║
-╚══════════════════════╝
-
-🎲 Результат: {result_text}
-
-📊 Итоги:
-{results_text}
-
-━━━━━━━━━━━━━━━━━━━━━━
-"""
+        final_caption = (
+            f"🎰 РУЛЕТКА — РЕЗУЛЬТАТ\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"🎲 Выпало: {result_text}\n\n"
+            f"📊 Итоги:\n{results_text}\n\n"
+            f"━━━━━━━━━━━━━━━━━━━━"
+        )
         
-        # Клавиатура с кнопкой "Как играть"
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🎮 Как играть?", callback_data="roulette_help")]
-        ])
-        
-        # Отправляем результат
-        await bot.send_message(chat_id, final_message, reply_markup=keyboard)
+        # Отправляем результат с фото в отдельном сообщении
+        await bot.send_photo(
+            chat_id=chat_id,
+            photo=ROULETTE_RESULT_PHOTO,
+            caption=final_caption
+        )
         
         # Удаляем игру
         del active_games[chat_id]
@@ -298,10 +314,10 @@ async def finish_roulette_game(chat_id: int):
     except Exception as e:
         print(f"❌ Ошибка завершения игры: {e}")
 
-# Обработка ставок
+# Обработка ставок через кнопки
 @router.callback_query(F.data.startswith("bet_"))
 async def bet_callback(callback: CallbackQuery):
-    """Обработка ставок"""
+    """Обработка нажатий на кнопки"""
     try:
         chat_id = callback.message.chat.id
         game = active_games.get(chat_id)
@@ -310,10 +326,10 @@ async def bet_callback(callback: CallbackQuery):
             await callback.answer("❌ Игра уже завершена!", show_alert=True)
             return
         
-        bet_type = callback.data.replace("bet_", "")
+        action = callback.data.replace("bet_", "")
         
         # Отмена игры
-        if bet_type == "cancel":
+        if action == "cancel":
             if callback.from_user.id == game.creator_id:
                 game.is_active = False
                 if game.timer_task:
@@ -326,70 +342,217 @@ async def bet_callback(callback: CallbackQuery):
                 await callback.answer("❌ Только организатор может отменить игру!", show_alert=True)
                 return
         
-        # Проверяем пользователя
-        user = await get_user(db, callback.from_user.id)
-        if not user:
-            await callback.answer("❌ Сначала пройди регистрацию через /start", show_alert=True)
+        # Показать мои ставки
+        if action == "my_bets":
+            bets_text = game.get_user_bets_text(callback.from_user.id)
+            await callback.message.answer(bets_text)
+            await callback.answer()
             return
         
-        # Проверяем баланс
-        if user['balance'] < game.min_bet:
-            await callback.answer(f"❌ Недостаточно монет! Минимум: {game.min_bet}💰", show_alert=True)
+        # Ставка на число
+        if action == "number":
+            await callback.message.answer(
+                f"🎯 Введи число от 0 до 21:\n"
+                f"Напиши: число [номер] [сумма]\n"
+                f"Пример: число 7 100"
+            )
+            await callback.answer()
             return
         
-        # Определяем ставку
-        number = None
-        bet_type_mapped = None
+        # Для остальных ставок спрашиваем сумму
+        bet_type_names = {
+            "red": "красное",
+            "black": "черное",
+            "zero": "зеро",
+            "even": "чет",
+            "odd": "нечет"
+        }
         
-        if bet_type == "red":
-            bet_type_mapped = "red"
-        elif bet_type == "black":
-            bet_type_mapped = "black"
-        elif bet_type == "zero":
-            bet_type_mapped = "zero"
-        elif bet_type == "even":
-            bet_type_mapped = "even"
-        elif bet_type == "odd":
-            bet_type_mapped = "odd"
+        bet_type = action
+        bet_name = bet_type_names.get(bet_type, bet_type)
         
-        # Списываем монеты
-        await update_balance(db, callback.from_user.id, -game.min_bet)
-        
-        # Добавляем ставку
-        username = callback.from_user.username or callback.from_user.first_name
-        success, message_text = game.add_bet(
-            callback.from_user.id,
-            username,
-            bet_type_mapped,
-            game.min_bet,
-            number
+        await callback.message.answer(
+            f"💰 Введи сумму ставки:\n"
+            f"Напиши: {bet_name} [сумма]\n"
+            f"Пример: {bet_name} 100\n\n"
+            f"Минимальная ставка: {MIN_BET} монет"
         )
-        
-        if not success:
-            # Возвращаем монеты если ставка не принята
-            await update_balance(db, callback.from_user.id, game.min_bet)
-            await callback.answer(message_text, show_alert=True)
-            return
-        
-        await callback.answer(f"✅ {message_text}")
-        
-        # Обновляем сообщение
-        await callback.message.edit_text(
-            f"╔══════════════════════╗\n"
-            f"║      🎰 РУЛЕТКА      ║\n"
-            f"╚══════════════════════╝\n\n"
-            f"🎮 Игра создана!\n"
-            f"👤 Организатор: @{game.creator_name}\n"
-            f"💰 Минимальная ставка: {game.min_bet} монет\n"
-            f"⏳ Время на ставки: {GAME_TIMER} секунд\n\n"
-            f"📊 Текущие ставки:\n{game.get_bets_text()}\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━",
-            reply_markup=get_bet_keyboard()
-        )
+        await callback.answer()
         
     except Exception as e:
         print(f"❌ Ошибка ставки: {e}")
         await callback.answer("⚠️ Ошибка сервера", show_alert=True)
+
+# Обработка суммы ставки
+@router.message(F.text.lower().startswith(("красное", "черное", "зеро", "чет", "нечет", "четное", "нечетное")))
+async def amount_bet(message: Message):
+    """Обработка суммы ставки"""
+    try:
+        chat_id = message.chat.id
+        game = active_games.get(chat_id)
+        
+        if not game or not game.is_active:
+            await message.answer("❌ Нет активной игры!")
+            return
+        
+        parts = message.text.split()
+        if len(parts) < 2:
+            await message.answer("❌ Укажи сумму!\nПример: красное 100")
+            return
+        
+        bet_type_str = parts[0].lower()
+        try:
+            amount = int(parts[1])
+        except:
+            await message.answer("❌ Сумма должна быть числом!")
+            return
+        
+        if amount < MIN_BET:
+            await message.answer(f"❌ Минимальная ставка: {MIN_BET}💰")
+            return
+        
+        # Проверяем баланс
+        user = await get_user(db, message.from_user.id)
+        if not user:
+            await message.answer("❌ Сначала пройди регистрацию через /start")
+            return
+        
+        if user['balance'] < amount:
+            await message.answer(f"❌ Недостаточно монет! У тебя: {user['balance']}💰")
+            return
+        
+        # Определяем тип
+        if bet_type_str in ["красное"]:
+            bet_type = "red"
+        elif bet_type_str in ["черное"]:
+            bet_type = "black"
+        elif bet_type_str in ["зеро"]:
+            bet_type = "zero"
+        elif bet_type_str in ["чет", "четное"]:
+            bet_type = "even"
+        elif bet_type_str in ["нечет", "нечетное"]:
+            bet_type = "odd"
+        else:
+            return
+        
+        # Списываем
+        await update_balance(db, message.from_user.id, -amount)
+        
+        # Добавляем ставку
+        username = message.from_user.username or message.from_user.first_name
+        success, msg_text = game.add_bet(message.from_user.id, username, bet_type, amount)
+        
+        if not success:
+            await update_balance(db, message.from_user.id, amount)
+            await message.answer(msg_text)
+            return
+        
+        await message.answer(f"✅ {msg_text}")
+        
+        # Обновляем сообщение с ставками
+        try:
+            await bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=game.message_id,
+                text=(
+                    f"🎰 РУЛЕТКА\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                    f"🎮 Игра создана!\n"
+                    f"👤 Организатор: @{game.creator_name}\n"
+                    f"💰 Минимальная ставка: {MIN_BET} монет\n"
+                    f"⏳ Время на ставки: {GAME_TIMER} секунд\n"
+                    f"💸 Комиссия: 10%\n\n"
+                    f"📊 Текущие ставки:\n{game.get_bets_text()}\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"Нажми на кнопку, чтобы сделать ставку:"
+                ),
+                reply_markup=get_bet_keyboard()
+            )
+        except:
+            pass
+        
+    except Exception as e:
+        print(f"❌ Ошибка суммы ставки: {e}")
+        await message.answer("⚠️ Ошибка сервера")
+
+# Обработка ставки на число
+@router.message(F.text.lower().startswith("число"))
+async def number_bet(message: Message):
+    """Обработка ставки на число"""
+    try:
+        chat_id = message.chat.id
+        game = active_games.get(chat_id)
+        
+        if not game or not game.is_active:
+            await message.answer("❌ Нет активной игры!")
+            return
+        
+        parts = message.text.split()
+        if len(parts) < 3:
+            await message.answer("❌ Укажи число и сумму!\nПример: число 7 100")
+            return
+        
+        try:
+            number = int(parts[1])
+            amount = int(parts[2])
+        except:
+            await message.answer("❌ Число и сумма должны быть числами!")
+            return
+        
+        if number < 0 or number > 21:
+            await message.answer("❌ Число должно быть от 0 до 21!")
+            return
+        
+        if amount < MIN_BET:
+            await message.answer(f"❌ Минимальная ставка: {MIN_BET}💰")
+            return
+        
+        user = await get_user(db, message.from_user.id)
+        if not user:
+            await message.answer("❌ Сначала пройди регистрацию через /start")
+            return
+        
+        if user['balance'] < amount:
+            await message.answer(f"❌ Недостаточно монет! У тебя: {user['balance']}💰")
+            return
+        
+        await update_balance(db, message.from_user.id, -amount)
+        
+        username = message.from_user.username or message.from_user.first_name
+        success, msg_text = game.add_bet(message.from_user.id, username, "number", amount, number)
+        
+        if not success:
+            await update_balance(db, message.from_user.id, amount)
+            await message.answer(msg_text)
+            return
+        
+        await message.answer(f"✅ {msg_text}")
+        
+        # Обновляем сообщение
+        try:
+            await bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=game.message_id,
+                text=(
+                    f"🎰 РУЛЕТКА\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                    f"🎮 Игра создана!\n"
+                    f"👤 Организатор: @{game.creator_name}\n"
+                    f"💰 Минимальная ставка: {MIN_BET} монет\n"
+                    f"⏳ Время на ставки: {GAME_TIMER} секунд\n"
+                    f"💸 Комиссия: 10%\n\n"
+                    f"📊 Текущие ставки:\n{game.get_bets_text()}\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"Нажми на кнопку, чтобы сделать ставку:"
+                ),
+                reply_markup=get_bet_keyboard()
+            )
+        except:
+            pass
+        
+    except Exception as e:
+        print(f"❌ Ошибка ставки на число: {e}")
+        await message.answer("⚠️ Ошибка сервера")
 
 # Лог
 @router.message(F.text.lower() == "лог")
@@ -444,35 +607,3 @@ async def roulette_log(message: Message):
     except Exception as e:
         print(f"❌ Ошибка лога: {e}")
         await message.answer("⚠️ Ошибка сервера")
-
-# Помощь
-@router.callback_query(F.data == "roulette_help")
-async def roulette_help_callback(callback: CallbackQuery):
-    """Показать помощь по рулетке"""
-    help_text = """
-🎰 Игра "Рулетка": Как играть?
-
-🔹 Виды ставок:
-🎯 Число: Угадай конкретное число (0-36).
-⠀Пример: Рулетка 7 500 (ставка 500 на число 7). Выигрыш ×50
-
-🎲 Дюжина: Выбери группу чисел:
-⠀1-ая (1-12), 2-ая (13-24), 3-я (25-36).
-⠀Пример: Рулетка д2 300 (ставка 300 на 2-ю дюжину). Выигрыш ×3
-
-🔴 Красное: Ставка на красное. Выигрыш ×2
-⚫ Черное: Ставка на черное. Выигрыш ×2
-🔢 Чет/Нечет: Ставка на чет/нечет. Выигрыш ×2
-🟢 Зеро: Ставка на 0. Выигрыш ×100
-
-🔹 Как играть:
-1. Напиши 'рулетка' в чат
-2. Игроки нажимают кнопки для ставок
-3. Через 60 секунд рулетка крутится
-4. Результат виден всем!
-
-💡 Подсказка: Напиши 'лог' чтобы анализировать!
-"""
-    
-    await callback.message.answer(help_text)
-    await callback.answer()

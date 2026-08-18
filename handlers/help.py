@@ -9,22 +9,23 @@ router = Router()
 
 HELP_PHOTO = "https://i.ibb.co/N6dqh7MQ/5953fda8-0711-46b4-90ab-80f1fc2955f3.jpg"
 
+# Убираем все Markdown-теги, которые могут вызвать ошибку
 HELP_TEXT = """
-❓ **ПОМОЩЬ**
+❓ ПОМОЩЬ
 
-🔍 **Основные команды:**
-• `/start` — начать работу
-• `/profile` — открыть профиль
-• `/statistics` — статистика игр
-• `/help` — эта справка
+🔍 Основные команды:
+• /start — начать работу
+• /profile — открыть профиль
+• /statistics — статистика игр
+• /help — эта справка
 
-🛍️ **Функции:**
-• **Профиль** — просмотр статистики
-• **Магазин** — покупка предметов
-• **Ежедневный приз** — получить награду
-• **Переводы** — отправить деньги другу
+🛍️ Функции:
+• Профиль — просмотр статистики
+• Магазин — покупка предметов
+• Ежедневный приз — получить награду
+• Переводы — отправить деньги другу
 
-💡 **Советы:**
+💡 Советы:
 • Играй каждый день для бонусов
 • Участвуй в событиях
 • Присоединись к команде
@@ -39,14 +40,13 @@ async def help_command(message: Message):
         await message.answer_photo(
             photo=HELP_PHOTO,
             caption=HELP_TEXT,
-            parse_mode="Markdown",
             reply_markup=get_main_menu()
         )
     except Exception as e:
         print(f"❌ Ошибка отправки помощи: {e}")
+        # Запасной вариант без фото
         await message.answer(
             HELP_TEXT,
-            parse_mode="Markdown",
             reply_markup=get_main_menu()
         )
 
@@ -57,14 +57,13 @@ async def help_button(message: Message):
         await message.answer_photo(
             photo=HELP_PHOTO,
             caption=HELP_TEXT,
-            parse_mode="Markdown",
             reply_markup=get_main_menu()
         )
     except Exception as e:
         print(f"❌ Ошибка отправки помощи (кнопка): {e}")
+        # Запасной вариант без фото
         await message.answer(
             HELP_TEXT,
-            parse_mode="Markdown",
             reply_markup=get_main_menu()
         )
 
@@ -75,13 +74,12 @@ async def help_slash_command(message: Message):
         await message.answer_photo(
             photo=HELP_PHOTO,
             caption=HELP_TEXT,
-            parse_mode="Markdown",
             reply_markup=get_main_menu()
         )
     except Exception as e:
         print(f"❌ Ошибка отправки помощи (слеш): {e}")
+        # Запасной вариант без фото
         await message.answer(
             HELP_TEXT,
-            parse_mode="Markdown",
             reply_markup=get_main_menu()
         )

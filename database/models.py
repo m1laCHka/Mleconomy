@@ -100,15 +100,7 @@ CREATE TABLE IF NOT EXISTS user_promos (
 async def init_db(db):
     """Инициализировать все таблицы БД"""
     try:
-        # Удаляем старую таблицу users (если есть проблемы)
-        await db.execute("DROP TABLE IF EXISTS users CASCADE")
-        await db.execute("DROP TABLE IF EXISTS families CASCADE")
-        await db.execute("DROP TABLE IF EXISTS children CASCADE")
-        await db.execute("DROP TABLE IF EXISTS achievements CASCADE")
-        await db.execute("DROP TABLE IF EXISTS promos CASCADE")
-        await db.execute("DROP TABLE IF EXISTS user_promos CASCADE")
-        
-        # Создаем все таблицы заново
+        # Создаем таблицы (без удаления!)
         await db.execute(CREATE_USERS_TABLE)
         await db.execute(CREATE_FAMILIES_TABLE)
         await db.execute(CREATE_CHILDREN_TABLE)
@@ -136,7 +128,6 @@ async def user_exists(db, user_id: int) -> bool:
 async def create_user(db, user_id: int, username: str, gender: str = None):
     """Создать нового пользователя"""
     try:
-        # Проверяем, какие поля есть в таблице
         await db.execute(
             """
             INSERT INTO users (user_id, username, gender, balance, stars)

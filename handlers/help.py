@@ -9,7 +9,6 @@ router = Router()
 
 HELP_PHOTO = "https://i.ibb.co/N6dqh7MQ/5953fda8-0711-46b4-90ab-80f1fc2955f3.jpg"
 
-# Убираем все Markdown-теги, которые могут вызвать ошибку
 HELP_TEXT = """
 ❓ ПОМОЩЬ
 
@@ -33,53 +32,62 @@ HELP_TEXT = """
 ❓ Остались вопросы? Свяжись с поддержкой: @support_bot
 """
 
+def is_private_chat(message: Message) -> bool:
+    """Проверка, является ли чат личным"""
+    return message.chat.type == "private"
+
 @router.message(Command("help"))
 async def help_command(message: Message):
     """Команда /help"""
     try:
-        await message.answer_photo(
-            photo=HELP_PHOTO,
-            caption=HELP_TEXT,
-            reply_markup=get_main_menu()
-        )
+        if is_private_chat(message):
+            # В личных сообщениях с меню
+            await message.answer_photo(
+                photo=HELP_PHOTO,
+                caption=HELP_TEXT,
+                reply_markup=get_main_menu()
+            )
+        else:
+            # В группах без меню
+            await message.answer_photo(
+                photo=HELP_PHOTO,
+                caption=HELP_TEXT
+            )
     except Exception as e:
         print(f"❌ Ошибка отправки помощи: {e}")
         # Запасной вариант без фото
-        await message.answer(
-            HELP_TEXT,
-            reply_markup=get_main_menu()
-        )
+        if is_private_chat(message):
+            await message.answer(
+                HELP_TEXT,
+                reply_markup=get_main_menu()
+            )
+        else:
+            await message.answer(HELP_TEXT)
 
 @router.message(F.text == "❓ Помощь")
 async def help_button(message: Message):
     """Кнопка помощи"""
     try:
-        await message.answer_photo(
-            photo=HELP_PHOTO,
-            caption=HELP_TEXT,
-            reply_markup=get_main_menu()
-        )
+        if is_private_chat(message):
+            # В личных сообщениях с меню
+            await message.answer_photo(
+                photo=HELP_PHOTO,
+                caption=HELP_TEXT,
+                reply_markup=get_main_menu()
+            )
+        else:
+            # В группах без меню
+            await message.answer_photo(
+                photo=HELP_PHOTO,
+                caption=HELP_TEXT
+            )
     except Exception as e:
         print(f"❌ Ошибка отправки помощи (кнопка): {e}")
         # Запасной вариант без фото
-        await message.answer(
-            HELP_TEXT,
-            reply_markup=get_main_menu()
-        )
-
-@router.message(F.text == "/help")
-async def help_slash_command(message: Message):
-    """Команда /help (дополнительная)"""
-    try:
-        await message.answer_photo(
-            photo=HELP_PHOTO,
-            caption=HELP_TEXT,
-            reply_markup=get_main_menu()
-        )
-    except Exception as e:
-        print(f"❌ Ошибка отправки помощи (слеш): {e}")
-        # Запасной вариант без фото
-        await message.answer(
-            HELP_TEXT,
-            reply_markup=get_main_menu()
-        )
+        if is_private_chat(message):
+            await message.answer(
+                HELP_TEXT,
+                reply_markup=get_main_menu()
+            )
+        else:
+            await message.answer(HELP_TEXT)

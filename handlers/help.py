@@ -1,6 +1,6 @@
 # handlers/help.py
 
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.filters import Command
 from keyboards.main_menu import get_main_menu
@@ -15,6 +15,7 @@ HELP_TEXT = """
 🔍 **Основные команды:**
 • `/start` — начать работу
 • `/profile` — открыть профиль
+• `/statistics` — статистика игр
 • `/help` — эта справка
 
 🛍️ **Функции:**
@@ -26,11 +27,24 @@ HELP_TEXT = """
 💡 **Советы:**
 • Играй каждый день для бонусов
 • Участвуй в событиях
-• Присоединись к команде"""
+• Присоединись к команде
+
+❓ Остались вопросы? Свяжись с поддержкой: @support_bot
+"""
 
 @router.message(Command("help"))
 async def help_command(message: Message):
     """Команда /help"""
+    await message.answer_photo(
+        photo=HELP_PHOTO,
+        caption=HELP_TEXT,
+        parse_mode="Markdown",
+        reply_markup=get_main_menu()
+    )
+
+@router.message(F.text == "❓ Помощь")
+async def help_button(message: Message):
+    """Кнопка помощи"""
     await message.answer_photo(
         photo=HELP_PHOTO,
         caption=HELP_TEXT,

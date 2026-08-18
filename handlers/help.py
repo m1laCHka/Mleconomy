@@ -35,19 +35,53 @@ HELP_TEXT = """
 @router.message(Command("help"))
 async def help_command(message: Message):
     """Команда /help"""
-    await message.answer_photo(
-        photo=HELP_PHOTO,
-        caption=HELP_TEXT,
-        parse_mode="Markdown",
-        reply_markup=get_main_menu()
-    )
+    try:
+        await message.answer_photo(
+            photo=HELP_PHOTO,
+            caption=HELP_TEXT,
+            parse_mode="Markdown",
+            reply_markup=get_main_menu()
+        )
+    except Exception as e:
+        print(f"❌ Ошибка отправки помощи: {e}")
+        await message.answer(
+            HELP_TEXT,
+            parse_mode="Markdown",
+            reply_markup=get_main_menu()
+        )
 
 @router.message(F.text == "❓ Помощь")
 async def help_button(message: Message):
     """Кнопка помощи"""
-    await message.answer_photo(
-        photo=HELP_PHOTO,
-        caption=HELP_TEXT,
-        parse_mode="Markdown",
-        reply_markup=get_main_menu()
-    )
+    try:
+        await message.answer_photo(
+            photo=HELP_PHOTO,
+            caption=HELP_TEXT,
+            parse_mode="Markdown",
+            reply_markup=get_main_menu()
+        )
+    except Exception as e:
+        print(f"❌ Ошибка отправки помощи (кнопка): {e}")
+        await message.answer(
+            HELP_TEXT,
+            parse_mode="Markdown",
+            reply_markup=get_main_menu()
+        )
+
+@router.message(F.text == "/help")
+async def help_slash_command(message: Message):
+    """Команда /help (дополнительная)"""
+    try:
+        await message.answer_photo(
+            photo=HELP_PHOTO,
+            caption=HELP_TEXT,
+            parse_mode="Markdown",
+            reply_markup=get_main_menu()
+        )
+    except Exception as e:
+        print(f"❌ Ошибка отправки помощи (слеш): {e}")
+        await message.answer(
+            HELP_TEXT,
+            parse_mode="Markdown",
+            reply_markup=get_main_menu()
+        )

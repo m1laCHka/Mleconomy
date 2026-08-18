@@ -3,7 +3,7 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
 def get_gender_selection() -> InlineKeyboardMarkup:
-    """Выбор пола при регистрации"""
+    """Выбор пола при регистрации (инлайн-кнопки)"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="👨 Мужской", callback_data="gender_male"),
@@ -13,7 +13,7 @@ def get_gender_selection() -> InlineKeyboardMarkup:
     return keyboard
 
 def get_main_menu() -> ReplyKeyboardMarkup:
-    """Главное меню"""
+    """Главное меню (только для личных сообщений)"""
     keyboard = ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="👤 Профиль")],
@@ -22,6 +22,7 @@ def get_main_menu() -> ReplyKeyboardMarkup:
             [KeyboardButton(text="💳 Переводы")],
             [KeyboardButton(text="❓ Помощь")]
         ],
-        resize_keyboard=True
+        resize_keyboard=True,
+        is_persistent=False
     )
     return keyboard

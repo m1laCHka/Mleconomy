@@ -1,4 +1,5 @@
 # main.py
+
 import asyncio
 import logging
 from aiohttp import web
@@ -8,7 +9,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from config import BOT_TOKEN, PORT, DATABASE_URL
 from database.db import db
 from database.models import init_db
-from handlers import start, profile, help
+from handlers import start, profile, help, admin
 from utils.logger import logger
 
 async def health_check(request):
@@ -32,6 +33,7 @@ async def main():
         dp.include_router(start.router)
         dp.include_router(profile.router)
         dp.include_router(help.router)
+        dp.include_router(admin.router)
         
         # Создаем веб-сервер для Render
         app = web.Application()

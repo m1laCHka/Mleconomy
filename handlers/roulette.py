@@ -1,6 +1,6 @@
 # handlers/roulette.py
 
-from aiogram import Router, F
+from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -8,6 +8,7 @@ from database.db import db
 from database.models import get_user, update_balance, update_stats
 import random
 import asyncio
+from datetime import datetime
 
 router = Router()
 
@@ -27,15 +28,17 @@ BLACK_NUMBERS = [2, 4, 6, 8, 10, 11, 13, 15, 17, 20]
 active_games = {}
 
 class RouletteGame:
-    def __init__(self, chat_id: int, creator_id: int, creator_name: str):
+    def __init__(self, chat_id: int, creator_id: int, creator_name: str, bot: Bot):
         self.chat_id = chat_id
         self.creator_id = creator_id
         self.creator_name = creator_name
+        self.bot = bot  # Сохраняем bot
         self.bets = []
         self.is_active = True
         self.message_id = None
         self.timer_task = None
         self.remaining_time = GAME_TIMER
+        self.started_at = datetime.now()
     
     def add_bet(self, user_id: int, username: str, bet_type: str, amount: int, number: int = None):
         """Добавить ставку"""
@@ -60,6 +63,9 @@ class RouletteGame:
             zero_bets = [b for b in user_bets if b["bet_type"] == "zero"]
             if zero_bets:
                 return False, "❌ Ты уже поставил на зеро!"
+        
+        if len(user_bets) >= 6:
+            return False, "❌ Максимум 6 ставок!"
         
         self.bets.append({
             "user_id": user_id,
@@ -92,6 +98,12 @@ class RouletteGame:
             bet_text = get_bet_type_text(bet["bet_type"], bet["number"])
             text += f"• {bet_text} — {bet['amount']}💰\n"
         return text
+    
+    def get_remaining_seconds(self) -> int:
+        """Получить оставшееся время"""
+        elapsed = (datetime.now() - self.started_at).total_seconds()
+        remaining = GAME_TIMER - elapsed
+        return max(0, int(remaining))
 
 def spin_roulette() -> dict:
     """Крутить рулетку (0-21)"""
@@ -202,53 +214,29 @@ async def save_roulette_log(chat_id: int, result: dict):
     except Exception as e:
         print(f"❌ Ошибка сохранения лога: {e}")
 
-# Обработка команды "рулетка"
-@router.message(F.text.lower().startswith("рулетка"))
-async def roulette_start(message: Message):
-    """Начать игру в рулетку"""
+async def update_game_message(game: RouletteGame):
+    """Обновить сообщение с игрой"""
     try:
-        chat_id = message.chat.id
-        
-        # Проверяем, идет ли уже игра
-        if chat_id in active_games and active_games[chat_id].is_active:
-            game = active_games[chat_id]
-            # Обновляем таймер
-            game.remaining_time = GAME_TIMER
-            if game.timer_task:
-                game.timer_task.cancel()
-            game.timer_task = asyncio.create_task(finish_game_after_timer(chat_id))
-            
-            await message.answer(
-                f"⏳ Время обновлено! Осталось: {game.remaining_time} секунд"
-            )
-            return
-        
-        # Создаем новую игру
-        username = message.from_user.username or message.from_user.first_name
-        game = RouletteGame(chat_id, message.from_user.id, username)
-        active_games[chat_id] = game
-        
-        # Отправляем сообщение
-        msg = await message.answer(
-            f"🎰 РУЛЕТКА\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"🎮 Игра создана!\n"
-            f"👤 Организатор: @{username}\n"
-            f"💰 Минимальная ставка: {MIN_BET} монет\n"
-            f"⏳ Время на ставки: {GAME_TIMER} секунд\n"
-            f"💸 Комиссия: 10%\n\n"
-            f"📊 Текущие ставки: нет\n\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"Нажми на кнопку, чтобы сделать ставку:",
+        remaining = game.get_remaining_seconds()
+        await game.bot.edit_message_text(
+            chat_id=game.chat_id,
+            message_id=game.message_id,
+            text=(
+                f"🎰 РУЛЕТКА\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"🎮 Игра идет!\n"
+                f"👤 Организатор: @{game.creator_name}\n"
+                f"💰 Минимальная ставка: {MIN_BET} монет\n"
+                f"⏳ Осталось: {remaining} секунд\n"
+                f"💸 Комиссия: 10%\n\n"
+                f"📊 Текущие ставки:\n{game.get_bets_text()}\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"Нажми на кнопку, чтобы сделать ставку:"
+            ),
             reply_markup=get_bet_keyboard()
         )
-        
-        game.message_id = msg.message_id
-        game.timer_task = asyncio.create_task(finish_game_after_timer(chat_id))
-        
     except Exception as e:
-        print(f"❌ Ошибка создания игры: {e}")
-        await message.answer("⚠️ Ошибка сервера")
+        print(f"❌ Ошибка обновления сообщения: {e}")
 
 async def finish_game_after_timer(chat_id: int):
     """Завершить игру после таймера"""
@@ -301,8 +289,8 @@ async def finish_roulette_game(chat_id: int):
             f"━━━━━━━━━━━━━━━━━━━━"
         )
         
-        # Отправляем результат с фото в отдельном сообщении
-        await bot.send_photo(
+        # Отправляем результат с фото (используем game.bot)
+        await game.bot.send_photo(
             chat_id=chat_id,
             photo=ROULETTE_RESULT_PHOTO,
             caption=final_caption
@@ -313,6 +301,63 @@ async def finish_roulette_game(chat_id: int):
         
     except Exception as e:
         print(f"❌ Ошибка завершения игры: {e}")
+
+# Обработка команды "рулетка" (только в группах)
+@router.message(F.text.lower().startswith("рулетка"))
+async def roulette_start(message: Message):
+    """Начать игру в рулетку"""
+    try:
+        # Проверяем, что это группа
+        if message.chat.type == "private":
+            await message.answer("❌ Рулетка доступна только в группах!")
+            return
+        
+        chat_id = message.chat.id
+        bot = message.bot  # Получаем bot из message
+        
+        # Проверяем, идет ли уже игра
+        if chat_id in active_games and active_games[chat_id].is_active:
+            game = active_games[chat_id]
+            
+            # Перезапускаем таймер
+            game.started_at = datetime.now()
+            if game.timer_task:
+                game.timer_task.cancel()
+            game.timer_task = asyncio.create_task(finish_game_after_timer(chat_id))
+            
+            remaining = game.get_remaining_seconds()
+            await message.answer(
+                f"⏳ Таймер обновлен! Осталось: {remaining} секунд"
+            )
+            await update_game_message(game)
+            return
+        
+        # Создаем новую игру
+        username = message.from_user.username or message.from_user.first_name
+        game = RouletteGame(chat_id, message.from_user.id, username, bot)
+        active_games[chat_id] = game
+        
+        # Отправляем сообщение
+        msg = await message.answer(
+            f"🎰 РУЛЕТКА\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"🎮 Игра создана!\n"
+            f"👤 Организатор: @{username}\n"
+            f"💰 Минимальная ставка: {MIN_BET} монет\n"
+            f"⏳ Время на ставки: {GAME_TIMER} секунд\n"
+            f"💸 Комиссия: 10%\n\n"
+            f"📊 Текущие ставки: нет\n\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"Нажми на кнопку, чтобы сделать ставку:",
+            reply_markup=get_bet_keyboard()
+        )
+        
+        game.message_id = msg.message_id
+        game.timer_task = asyncio.create_task(finish_game_after_timer(chat_id))
+        
+    except Exception as e:
+        print(f"❌ Ошибка создания игры: {e}")
+        await message.answer("⚠️ Ошибка сервера")
 
 # Обработка ставок через кнопки
 @router.callback_query(F.data.startswith("bet_"))
@@ -450,26 +495,7 @@ async def amount_bet(message: Message):
         await message.answer(f"✅ {msg_text}")
         
         # Обновляем сообщение с ставками
-        try:
-            await bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=game.message_id,
-                text=(
-                    f"🎰 РУЛЕТКА\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n\n"
-                    f"🎮 Игра создана!\n"
-                    f"👤 Организатор: @{game.creator_name}\n"
-                    f"💰 Минимальная ставка: {MIN_BET} монет\n"
-                    f"⏳ Время на ставки: {GAME_TIMER} секунд\n"
-                    f"💸 Комиссия: 10%\n\n"
-                    f"📊 Текущие ставки:\n{game.get_bets_text()}\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"Нажми на кнопку, чтобы сделать ставку:"
-                ),
-                reply_markup=get_bet_keyboard()
-            )
-        except:
-            pass
+        await update_game_message(game)
         
     except Exception as e:
         print(f"❌ Ошибка суммы ставки: {e}")
@@ -529,26 +555,7 @@ async def number_bet(message: Message):
         await message.answer(f"✅ {msg_text}")
         
         # Обновляем сообщение
-        try:
-            await bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=game.message_id,
-                text=(
-                    f"🎰 РУЛЕТКА\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n\n"
-                    f"🎮 Игра создана!\n"
-                    f"👤 Организатор: @{game.creator_name}\n"
-                    f"💰 Минимальная ставка: {MIN_BET} монет\n"
-                    f"⏳ Время на ставки: {GAME_TIMER} секунд\n"
-                    f"💸 Комиссия: 10%\n\n"
-                    f"📊 Текущие ставки:\n{game.get_bets_text()}\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"Нажми на кнопку, чтобы сделать ставку:"
-                ),
-                reply_markup=get_bet_keyboard()
-            )
-        except:
-            pass
+        await update_game_message(game)
         
     except Exception as e:
         print(f"❌ Ошибка ставки на число: {e}")

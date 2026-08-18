@@ -12,9 +12,9 @@ router = Router()
 
 START_PHOTO = "https://i.ibb.co/N6dqh7MQ/5953fda8-0711-46b4-90ab-80f1fc2955f3.jpg"
 
-# Клавиатура для выбора пола (текстовые кнопки)
-def get_gender_text_keyboard():
-    """Клавиатура с текстовыми кнопками для выбора пола"""
+# Клавиатура для выбора пола
+def get_gender_keyboard():
+    """Клавиатура для выбора пола"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="👨 Мужской", callback_data="gender_male"),
@@ -43,14 +43,18 @@ async def start_command(message: Message):
             await message.answer_photo(
                 photo=START_PHOTO,
                 caption="👋 Привет! Сначала выбери свой пол:",
-                reply_markup=get_gender_text_keyboard()
+                reply_markup=get_gender_keyboard()
             )
     except Exception as e:
         print(f"❌ Ошибка в /start: {e}")
-        await message.answer(
-            "⚠️ Ошибка сервера. Попробуй ещё раз.",
-            reply_markup=get_main_menu()
-        )
+        # Запасной вариант без фото
+        try:
+            await message.answer(
+                "👋 Привет! Выбери свой пол:",
+                reply_markup=get_gender_keyboard()
+            )
+        except Exception as e2:
+            print(f"❌ Критическая ошибка в /start: {e2}")
 
 @router.callback_query(F.data == "gender_male")
 async def gender_male_callback(callback: CallbackQuery):
@@ -58,6 +62,19 @@ async def gender_male_callback(callback: CallbackQuery):
     try:
         user_id = callback.from_user.id
         username = callback.from_user.username or "User"
+        
+        # Проверяем, не существует ли уже пользователь
+        if await user_exists(db, user_id):
+            await callback.answer("Ты уже зарегистрирован!")
+            try:
+                await callback.message.delete()
+            except:
+                pass
+            await callback.message.answer(
+                "Главное меню:",
+                reply_markup=get_main_menu()
+            )
+            return
         
         # Создаём пользователя с полом
         await create_user(db, user_id, username, gender="male")
@@ -79,7 +96,10 @@ async def gender_male_callback(callback: CallbackQuery):
         )
     except Exception as e:
         print(f"❌ Ошибка при выборе мужского пола: {e}")
-        await callback.answer("⚠️ Ошибка сервера", show_alert=True)
+        try:
+            await callback.answer("⚠️ Ошибка сервера", show_alert=True)
+        except:
+            pass
 
 @router.callback_query(F.data == "gender_female")
 async def gender_female_callback(callback: CallbackQuery):
@@ -87,6 +107,19 @@ async def gender_female_callback(callback: CallbackQuery):
     try:
         user_id = callback.from_user.id
         username = callback.from_user.username or "User"
+        
+        # Проверяем, не существует ли уже пользователь
+        if await user_exists(db, user_id):
+            await callback.answer("Ты уже зарегистрирована!")
+            try:
+                await callback.message.delete()
+            except:
+                pass
+            await callback.message.answer(
+                "Главное меню:",
+                reply_markup=get_main_menu()
+            )
+            return
         
         # Создаём пользователя с полом
         await create_user(db, user_id, username, gender="female")
@@ -108,4 +141,7 @@ async def gender_female_callback(callback: CallbackQuery):
         )
     except Exception as e:
         print(f"❌ Ошибка при выборе женского пола: {e}")
-        await callback.answer("⚠️ Ошибка сервера", show_alert=True)
+        try:
+            await callback.answer("⚠️ Ошибка сервера", show_alert=True)
+        except:
+            pass

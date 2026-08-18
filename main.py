@@ -6,7 +6,7 @@ from aiohttp import web
 from aiogram import Dispatcher, Bot
 from aiogram.fsm.storage.memory import MemoryStorage
 
-from config import BOT_TOKEN, PORT, DATABASE_URL
+from config import BOT_TOKEN, PORT
 from database.db import db
 from database.models import init_db
 from handlers import start, profile, help, admin
@@ -18,13 +18,18 @@ async def health_check(request):
 
 async def main():
     """Запуск бота"""
+    bot = None
     try:
         # Подключаемся к БД
         logger.info("🔗 Подключение к БД...")
         await db.connect()
+        
+        # Инициализируем БД (удалит старые таблицы и создаст новые)
+        logger.info("🗄️ Инициализация БД...")
         await init_db(db)
         
         # Инициализируем бота
+        logger.info("🤖 Инициализация бота...")
         bot = Bot(token=BOT_TOKEN)
         storage = MemoryStorage()
         dp = Dispatcher(storage=storage)
@@ -46,14 +51,15 @@ async def main():
         logger.info(f"✅ Бот запущен на порту {PORT}!")
         
         # Запускаем polling
-        await dp.start_polling(bot)
+        await dp.start_polling(bot, allowed_updates=["message", "callback_query"])
         
     except Exception as e:
         logger.error(f"❌ Критическая ошибка: {e}")
         raise
     finally:
+        if bot:
+            await bot.session.close()
         await db.disconnect()
-        await bot.session.close()
         logger.info("🔌 Бот остановлен")
 
 if __name__ == "__main__":

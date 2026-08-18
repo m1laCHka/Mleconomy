@@ -51,14 +51,18 @@ def safe_winrate(wins: int, total: int) -> float:
         return (wins / total) * 100
     return 0.0
 
-async def show_profile(message: Message, user_id: int):
+async def show_profile(message: Message, user_id: int, target_user_id: int = None):
     """Показать профиль пользователя"""
     try:
-        user = await get_user(db, user_id)
+        # Если передан target_user_id, показываем его профиль
+        profile_id = target_user_id if target_user_id else user_id
+        
+        user = await get_user(db, profile_id)
         
         if not user:
             await message.answer(
-                "❌ Сначала пройди регистрацию через /start"
+                "❌ Этот пользователь не зарегистрирован в боте.\n"
+                "Попросите его написать /start"
             )
             return
         
@@ -229,23 +233,76 @@ async def show_statistics(message: Message, user_id: int):
 
 @router.message(Command("profile"))
 async def profile_command(message: Message):
-    """Команда /profile"""
-    await show_profile(message, message.from_user.id)
+    """Команда /profile — свой профиль или чужой по reply"""
+    try:
+        # Проверяем, есть ли ответ на сообщение
+        if message.reply_to_message:
+            # Показываем профиль того, на кого ответили
+            target_id = message.reply_to_message.from_user.id
+            await show_profile(message, message.from_user.id, target_id)
+        else:
+            # Показываем свой профиль
+            await show_profile(message, message.from_user.id)
+    except Exception as e:
+        print(f"❌ Ошибка в /profile: {e}")
+        await show_profile(message, message.from_user.id)
 
 @router.message(Command("p"))
 async def profile_short_command(message: Message):
     """Команда /p"""
-    await show_profile(message, message.from_user.id)
+    try:
+        if message.reply_to_message:
+            target_id = message.reply_to_message.from_user.id
+            await show_profile(message, message.from_user.id, target_id)
+        else:
+            await show_profile(message, message.from_user.id)
+    except Exception as e:
+        print(f"❌ Ошибка в /p: {e}")
+        await show_profile(message, message.from_user.id)
 
 @router.message(Command("профиль"))
 async def profile_ru_command(message: Message):
     """Команда /профиль"""
-    await show_profile(message, message.from_user.id)
+    try:
+        if message.reply_to_message:
+            target_id = message.reply_to_message.from_user.id
+            await show_profile(message, message.from_user.id, target_id)
+        else:
+            await show_profile(message, message.from_user.id)
+    except Exception as e:
+        print(f"❌ Ошибка в /профиль: {e}")
+        await show_profile(message, message.from_user.id)
 
 @router.message(F.text == "👤 Профиль")
 async def profile_button(message: Message):
     """Кнопка профиля"""
     await show_profile(message, message.from_user.id)
+
+# Обработка /profile @username
+@router.message(F.text.startswith("/profile @"))
+async def profile_by_username(message: Message):
+    """Команда /profile @username"""
+    try:
+        # Извлекаем username
+        username = message.text.split("@")[1].strip()
+        
+        # Ищем пользователя по username
+        target_user = await db.fetchrow(
+            "SELECT user_id FROM users WHERE username = $1",
+            username
+        )
+        
+        if target_user:
+            await show_profile(message, message.from_user.id, target_user['user_id'])
+        else:
+            await message.answer(
+                f"❌ Пользователь @{username} не найден в боте."
+            )
+    except Exception as e:
+        print(f"❌ Ошибка поиска пользователя: {e}")
+        await message.answer(
+            "⚠️ Ошибка при поиске пользователя"
+        )
 
 @router.message(Command("statistics"))
 async def statistics_command(message: Message):

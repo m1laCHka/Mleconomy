@@ -14,11 +14,14 @@ def get_gender_selection() -> InlineKeyboardMarkup:
 
 def get_main_menu() -> ReplyKeyboardMarkup:
     """Главное меню"""
-    keyboard = ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="👤 Профиль")],
-        [KeyboardButton(text="🛍️ Магазин")],
-        [KeyboardButton(text="🎁 Ежедневный приз")],
-        [KeyboardButton(text="💳 Переводы")],
-        [KeyboardButton(text="❓ Помощь")]
-    ], resize_keyboard=True)
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="👤 Профиль")],
+            [KeyboardButton(text="🛍️ Магазин")],
+            [KeyboardButton(text="🎁 Ежедневный приз")],
+            [KeyboardButton(text="💳 Переводы")],
+            [KeyboardButton(text="❓ Помощь")]
+        ],
+        resize_keyboard=True
+    )
     return keyboard

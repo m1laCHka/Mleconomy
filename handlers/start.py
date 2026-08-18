@@ -5,14 +5,13 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from database.db import db
-from database.models import user_exists, create_user, update_user_gender, get_user
-from keyboards.main_menu import get_gender_selection, get_main_menu
+from database.models import user_exists, create_user
+from keyboards.main_menu import get_main_menu
 
 router = Router()
 
 START_PHOTO = "https://i.ibb.co/N6dqh7MQ/5953fda8-0711-46b4-90ab-80f1fc2955f3.jpg"
 
-# Клавиатура для выбора пола
 def get_gender_keyboard():
     """Клавиатура для выбора пола"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -23,6 +22,10 @@ def get_gender_keyboard():
     ])
     return keyboard
 
+def is_private_chat(message: Message) -> bool:
+    """Проверка, является ли чат личным"""
+    return message.chat.type == "private"
+
 @router.message(Command("start"))
 async def start_command(message: Message):
     """Обработка команды /start"""
@@ -32,12 +35,23 @@ async def start_command(message: Message):
         
         # Проверяем, существует ли пользователь
         if await user_exists(db, user_id):
-            # Если уже зарегистрирован — показываем главное меню
-            await message.answer_photo(
-                photo=START_PHOTO,
-                caption="👋 Добро пожаловать! Выбери действие:",
-                reply_markup=get_main_menu()
-            )
+            # Если уже зарегистрирован
+            if is_private_chat(message):
+                # В личных сообщениях показываем меню
+                await message.answer_photo(
+                    photo=START_PHOTO,
+                    caption="👋 Добро пожаловать! Выбери действие:",
+                    reply_markup=get_main_menu()
+                )
+            else:
+                # В группах без меню
+                await message.answer_photo(
+                    photo=START_PHOTO,
+                    caption="👋 Добро пожаловать! Используй команды:\n"
+                            "/profile — профиль\n"
+                            "/help — помощь\n"
+                            "/statistics — статистика"
+                )
         else:
             # Если первый раз — просим выбрать пол
             await message.answer_photo(
@@ -47,7 +61,6 @@ async def start_command(message: Message):
             )
     except Exception as e:
         print(f"❌ Ошибка в /start: {e}")
-        # Запасной вариант без фото
         try:
             await message.answer(
                 "👋 Привет! Выбери свой пол:",
@@ -70,10 +83,16 @@ async def gender_male_callback(callback: CallbackQuery):
                 await callback.message.delete()
             except:
                 pass
-            await callback.message.answer(
-                "Главное меню:",
-                reply_markup=get_main_menu()
-            )
+            
+            if is_private_chat(callback.message):
+                await callback.message.answer(
+                    "Главное меню:",
+                    reply_markup=get_main_menu()
+                )
+            else:
+                await callback.message.answer(
+                    "Используй команды: /profile, /help, /statistics"
+                )
             return
         
         # Создаём пользователя с полом
@@ -87,13 +106,20 @@ async def gender_male_callback(callback: CallbackQuery):
         except:
             pass
         
-        # Показываем главное меню
-        await callback.message.answer(
-            "🎉 Отлично! Теперь ты зарегистрирован.\n"
-            "💰 Твой стартовый баланс: 500 монет и 10 звёзд\n\n"
-            "Выбери действие:",
-            reply_markup=get_main_menu()
-        )
+        # Показываем главное меню только в личных сообщениях
+        if is_private_chat(callback.message):
+            await callback.message.answer(
+                "🎉 Отлично! Теперь ты зарегистрирован.\n"
+                "💰 Твой стартовый баланс: 500 монет и 10 звёзд\n\n"
+                "Выбери действие:",
+                reply_markup=get_main_menu()
+            )
+        else:
+            await callback.message.answer(
+                "🎉 Отлично! Теперь ты зарегистрирован.\n"
+                "💰 Твой стартовый баланс: 500 монет и 10 звёзд\n\n"
+                "Используй команды: /profile, /help, /statistics"
+            )
     except Exception as e:
         print(f"❌ Ошибка при выборе мужского пола: {e}")
         try:
@@ -115,10 +141,16 @@ async def gender_female_callback(callback: CallbackQuery):
                 await callback.message.delete()
             except:
                 pass
-            await callback.message.answer(
-                "Главное меню:",
-                reply_markup=get_main_menu()
-            )
+            
+            if is_private_chat(callback.message):
+                await callback.message.answer(
+                    "Главное меню:",
+                    reply_markup=get_main_menu()
+                )
+            else:
+                await callback.message.answer(
+                    "Используй команды: /profile, /help, /statistics"
+                )
             return
         
         # Создаём пользователя с полом
@@ -132,13 +164,20 @@ async def gender_female_callback(callback: CallbackQuery):
         except:
             pass
         
-        # Показываем главное меню
-        await callback.message.answer(
-            "🎉 Отлично! Теперь ты зарегистрирована.\n"
-            "💰 Твой стартовый баланс: 500 монет и 10 звёзд\n\n"
-            "Выбери действие:",
-            reply_markup=get_main_menu()
-        )
+        # Показываем главное меню только в личных сообщениях
+        if is_private_chat(callback.message):
+            await callback.message.answer(
+                "🎉 Отлично! Теперь ты зарегистрирована.\n"
+                "💰 Твой стартовый баланс: 500 монет и 10 звёзд\n\n"
+                "Выбери действие:",
+                reply_markup=get_main_menu()
+            )
+        else:
+            await callback.message.answer(
+                "🎉 Отлично! Теперь ты зарегистрирована.\n"
+                "💰 Твой стартовый баланс: 500 монет и 10 звёзд\n\n"
+                "Используй команды: /profile, /help, /statistics"
+            )
     except Exception as e:
         print(f"❌ Ошибка при выборе женского пола: {e}")
         try:

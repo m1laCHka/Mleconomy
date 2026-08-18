@@ -13,6 +13,10 @@ router = Router()
 FEMALE_PHOTO = "https://i.ibb.co/RMbs94m/584b2c22-ff9b-491f-bccf-63fa7e692f6a.jpg"
 MALE_PHOTO = "https://i.ibb.co/pv7by3Y9/7e592789-6a08-4897-bfaa-054df3735f95.jpg"
 
+def is_private_chat(message: Message) -> bool:
+    """Проверка, является ли чат личным"""
+    return message.chat.type == "private"
+
 def get_rank(wins: int, total_games: int) -> str:
     """Определить ранг игрока по винрейту"""
     if total_games < 10:
@@ -54,8 +58,7 @@ async def show_profile(message: Message, user_id: int):
         
         if not user:
             await message.answer(
-                "❌ Сначала пройди регистрацию через /start",
-                reply_markup=get_main_menu()
+                "❌ Сначала пройди регистрацию через /start"
             )
             return
         
@@ -108,44 +111,50 @@ async def show_profile(message: Message, user_id: int):
         
         # Формируем профиль
         profile_text = f"""
-👤 **ПРОФИЛЬ ИГРОКА**
+👤 ПРОФИЛЬ ИГРОКА
 
-📱 **ID:** `{user['user_id']}`
-📝 **Имя:** {display_name}
-🏅 **Ранг:** {rank}
-💎 **VIP:** {vip_status}
+📱 ID: {user['user_id']}
+📝 Имя: {display_name}
+🏅 Ранг: {rank}
+💎 VIP: {vip_status}
 
-💰 **Баланс:** {balance} 💵
-⭐ **Звёзды:** {stars}
+💰 Баланс: {balance} 💵
+⭐ Звёзды: {stars}
 
-📊 **Общая статистика:**
+📊 Общая статистика:
 • Игр сыграно: {total_games}
 • Побед: {wins}
 • Поражений: {losses}
 • Винрейт: {winrate:.1f}%
 
-🎯 **Лучшая игра:** {best_game}
+🎯 Лучшая игра: {best_game}
 
-🏆 **Достижения:**
+🏆 Достижения:
 • Турнирные очки: {user.get('tournament_score') or 0}
 • Квестов выполнено: {user.get('quests_completed') or 0}
 
-👨‍👩‍👧 **Семья:** {'Есть' if user.get('family_id') else 'Нет'}
+👨‍👩‍👧 Семья: {'Есть' if user.get('family_id') else 'Нет'}
 
-📅 **Регистрация:** {created_date}
+📅 Регистрация: {created_date}
 """
         
-        await message.answer_photo(
-            photo=photo,
-            caption=profile_text,
-            parse_mode="Markdown",
-            reply_markup=get_main_menu()
-        )
+        # Показываем меню только в личных сообщениях
+        if is_private_chat(message):
+            await message.answer_photo(
+                photo=photo,
+                caption=profile_text,
+                reply_markup=get_main_menu()
+            )
+        else:
+            # В группах без меню
+            await message.answer_photo(
+                photo=photo,
+                caption=profile_text
+            )
     except Exception as e:
         print(f"❌ Ошибка получения профиля: {e}")
         await message.answer(
-            "⚠️ Ошибка сервера, попробуй позже",
-            reply_markup=get_main_menu()
+            "⚠️ Ошибка сервера, попробуй позже"
         )
 
 async def show_statistics(message: Message, user_id: int):
@@ -155,8 +164,7 @@ async def show_statistics(message: Message, user_id: int):
         
         if not user:
             await message.answer(
-                "❌ Сначала пройди регистрацию через /start",
-                reply_markup=get_main_menu()
+                "❌ Сначала пройди регистрацию через /start"
             )
             return
         
@@ -175,43 +183,46 @@ async def show_statistics(message: Message, user_id: int):
         
         # Статистика по каждой игре
         stats_text = f"""
-📊 **СТАТИСТИКА ИГР**
+📊 СТАТИСТИКА ИГР
 
-🎰 **Рулетка:**
+🎰 Рулетка:
 • Побед: {roulette_wins}/{roulette_games}
 • Винрейт: {safe_winrate(roulette_wins, roulette_games):.1f}%
 
-🤠 **Дуэли:**
+🤠 Дуэли:
 • Побед: {duel_wins}/{duel_games}
 • Винрейт: {safe_winrate(duel_wins, duel_games):.1f}%
 
-🐱 **Котики:**
+🐱 Котики:
 • Побед: {cat_wins}/{cat_games}
 • Винрейт: {safe_winrate(cat_wins, cat_games):.1f}%
 
-🎰 **Казино:**
+🎰 Казино:
 • Побед: {casino_wins}/{casino_games}
 • Винрейт: {safe_winrate(casino_wins, casino_games):.1f}%
 
-📈 **Общая статистика:**
+📈 Общая статистика:
 • Всего игр: {total_games}
 • Всего побед: {total_wins}
 • Всего поражений: {total_losses}
 • Общий винрейт: {safe_winrate(total_wins, total_games):.1f}%
 
-💡 *Играй в игры, чтобы увидеть статистику!*
+💡 Играй в игры, чтобы увидеть статистику!
 """
         
-        await message.answer(
-            stats_text,
-            parse_mode="Markdown",
-            reply_markup=get_main_menu()
-        )
+        # Показываем меню только в личных сообщениях
+        if is_private_chat(message):
+            await message.answer(
+                stats_text,
+                reply_markup=get_main_menu()
+            )
+        else:
+            # В группах без меню
+            await message.answer(stats_text)
     except Exception as e:
         print(f"❌ Ошибка получения статистики: {e}")
         await message.answer(
-            "⚠️ Ошибка сервера, попробуй позже",
-            reply_markup=get_main_menu()
+            "⚠️ Ошибка сервера, попробуй позже"
         )
 
 # Обработчики команд

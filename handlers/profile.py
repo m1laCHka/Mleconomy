@@ -257,8 +257,46 @@ async def bot_games_button(message: Message):
     if is_private_chat(message):
         await message.answer(
             "🤖 Игры с ботом:\n\n"
-            "🎰 Казино — скоро!",
+            "🎰 Казино — испытай удачу за 25⭐!",
             reply_markup=get_bot_games_menu()
+        )
+
+@router.message(F.text == "🎰 Казино")
+async def casino_button(message: Message):
+    if is_private_chat(message):
+        user = await get_user(db, message.from_user.id)
+        if not user:
+            await message.answer("❌ Сначала пройди регистрацию через /start")
+            return
+        
+        casino_cost = 25
+        
+        if user['stars'] < casino_cost:
+            await message.answer(
+                f"🎰 КАЗИНО\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"❌ Недостаточно звёзд!\n\n"
+                f"💎 Нужно: {casino_cost}⭐\n"
+                f"⭐ У тебя: {user['stars']}⭐\n\n"
+                f"Заработай звёзды в играх или получи ежедневный приз!",
+                reply_markup=get_bot_games_menu()
+            )
+            return
+        
+        from handlers.casino import get_casino_keyboard
+        
+        await message.answer(
+            f"🎰 КАЗИНО\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"💎 Стоимость игры: {casino_cost}⭐\n\n"
+            f"🎁 Выбери сундук:\n\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"Возможные призы:\n"
+            f"💰 Монеты\n"
+            f"⭐ Звёзды\n"
+            f"👑 VIP\n"
+            f"💎 И ещё кое-что...",
+            reply_markup=get_casino_keyboard()
         )
 
 @router.message(F.text == "🎰 Рулетка")

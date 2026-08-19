@@ -114,12 +114,11 @@ async def show_profile(message: Message, user_id: int, target_user_id: int = Non
 📅 Регистрация: {created_date}
 """
         
-        # Меню ТОЛЬКО в ЛС
         if is_private_chat(message):
             await message.answer_photo(
                 photo=photo,
                 caption=profile_text,
-                reply_markup=get_profile_menu()  # ← Меню профиля
+                reply_markup=get_profile_menu()
             )
         else:
             await message.answer_photo(
@@ -186,7 +185,8 @@ async def show_statistics(message: Message, user_id: int):
         print(f"❌ Ошибка статистики: {e}")
         await message.answer("⚠️ Ошибка сервера")
 
-# Обработчики команд
+# ============ ОБРАБОТЧИКИ КОМАНД ============
+
 @router.message(Command("profile"))
 async def profile_command(message: Message):
     if message.reply_to_message:
@@ -211,50 +211,6 @@ async def profile_ru_command(message: Message):
     else:
         await show_profile(message, message.from_user.id)
 
-@router.message(F.text == "👤 Профиль")
-async def profile_button(message: Message):
-    await show_profile(message, message.from_user.id)
-
-# Кнопки меню
-@router.message(F.text == "🎮 Игры")
-async def games_button(message: Message):
-    if is_private_chat(message):
-        await message.answer("🎮 Выбери тип игр:", reply_markup=get_games_menu())
-
-@router.message(F.text == "💬 Игры в чате")
-async def chat_games_button(message: Message):
-    if is_private_chat(message):
-        await message.answer(
-            "💬 Игры для чата:\n\n"
-            "🎰 Рулетка — напиши 'рулетка' в группе\n"
-            "⚔️ Дуэль — ответь на сообщение и напиши 'дуэль 100'\n"
-            "🐱 Котики — скоро!",
-            reply_markup=get_chat_games_menu()
-        )
-
-@router.message(F.text == "🤖 Игры с ботом")
-async def bot_games_button(message: Message):
-    if is_private_chat(message):
-        await message.answer(
-            "🤖 Игры с ботом:\n\n"
-            "🎰 Казино — скоро!",
-            reply_markup=get_bot_games_menu()
-        )
-
-@router.message(F.text == "🔙 Назад")
-async def back_button(message: Message):
-    if is_private_chat(message):
-        await message.answer("Главное меню:", reply_markup=get_main_menu())
-
-@router.message(F.text == "💳 Перевод")
-async def transfer_button(message: Message):
-    if is_private_chat(message):
-        await message.answer("💳 Переводы скоро будут доступны!")
-
-@router.message(F.text == "📊 Статистика")
-async def statistics_button(message: Message):
-    await show_statistics(message, message.from_user.id)
-
 @router.message(F.text.startswith("/profile @"))
 async def profile_by_username(message: Message):
     try:
@@ -269,6 +225,95 @@ async def profile_by_username(message: Message):
             await message.answer(f"❌ Пользователь @{username} не найден.")
     except Exception as e:
         print(f"❌ Ошибка поиска: {e}")
+
+# ============ КНОПКИ МЕНЮ ============
+
+@router.message(F.text == "👤 Профиль")
+async def profile_button(message: Message):
+    await show_profile(message, message.from_user.id)
+
+@router.message(F.text == "📊 Статистика")
+async def statistics_button(message: Message):
+    await show_statistics(message, message.from_user.id)
+
+@router.message(F.text == "🎮 Игры")
+async def games_button(message: Message):
+    if is_private_chat(message):
+        await message.answer("🎮 Выбери тип игр:", reply_markup=get_games_menu())
+
+@router.message(F.text == "💬 Игры в чате")
+async def chat_games_button(message: Message):
+    if is_private_chat(message):
+        await message.answer(
+            "💬 Игры для чата:\n\n"
+            "🎰 Рулетка — напиши «рулетка» в группе\n"
+            "⚔️ Дуэль — ответь на сообщение и напиши «дуэль 100»\n"
+            "🐱 Котики — напиши «котики 100» в группе",
+            reply_markup=get_chat_games_menu()
+        )
+
+@router.message(F.text == "🤖 Игры с ботом")
+async def bot_games_button(message: Message):
+    if is_private_chat(message):
+        await message.answer(
+            "🤖 Игры с ботом:\n\n"
+            "🎰 Казино — скоро!",
+            reply_markup=get_bot_games_menu()
+        )
+
+@router.message(F.text == "🎰 Рулетка")
+async def roulette_button(message: Message):
+    if is_private_chat(message):
+        await message.answer(
+            "🎰 Рулетка — игра для чата!\n\n"
+            "Как играть:\n"
+            "1. Напиши «рулетка» в группе\n"
+            "2. Нажми на кнопку для ставки\n"
+            "3. Введи сумму ставки\n\n"
+            "Или: рулетка [ставка] [сумма]\n"
+            "Пример: рулетка красное 100",
+            reply_markup=get_chat_games_menu()
+        )
+
+@router.message(F.text == "⚔️ Дуэль")
+async def duel_button(message: Message):
+    if is_private_chat(message):
+        await message.answer(
+            "⚔️ Дуэль — игра для чата!\n\n"
+            "Как играть:\n"
+            "1. Ответь на сообщение противника\n"
+            "2. Напиши «дуэль [ставка]»\n"
+            "3. Противник принимает вызов\n"
+            "4. Атакуйте одновременно!\n\n"
+            "Пример: дуэль 100",
+            reply_markup=get_chat_games_menu()
+        )
+
+@router.message(F.text == "🐱 Котики")
+async def cats_button(message: Message):
+    if is_private_chat(message):
+        await message.answer(
+            "🐱 Котики — игра для чата!\n\n"
+            "Как играть:\n"
+            "1. Напиши «котики [ставка]» в группе\n"
+            "2. Выбери режим: Один или С кем-то\n"
+            "3. Посчитай ЖЕЛТЫХ котиков (🐈)\n"
+            "4. Черные (🐈‍⬛) не считаются!\n\n"
+            "Пример: котики 100",
+            reply_markup=get_chat_games_menu()
+        )
+
+@router.message(F.text == "💳 Перевод")
+async def transfer_button(message: Message):
+    if is_private_chat(message):
+        await message.answer("💳 Переводы скоро будут доступны!")
+
+@router.message(F.text == "🔙 Назад")
+async def back_button(message: Message):
+    if is_private_chat(message):
+        await message.answer("Главное меню:", reply_markup=get_main_menu())
+
+# ============ СТАТИСТИКА ============
 
 @router.message(Command("statistics"))
 async def statistics_command(message: Message):

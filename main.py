@@ -45,7 +45,7 @@ async def main():
         dp.include_router(casino.router)
         dp.include_router(prize.router)
         
-        # Создаем веб-сервер для Render
+        # Веб-сервер
         app = web.Application()
         app.router.add_get("/", health_check)
         runner = web.AppRunner(app)
@@ -55,8 +55,16 @@ async def main():
         
         logger.info(f"✅ Бот запущен на порту {PORT}!")
         
-        # Удаляем старые обновления и запускаем polling
+        # ВАЖНО: Удаляем webhook и старые обновления
         await bot.delete_webhook(drop_pending_updates=True)
+        
+        # Закрываем старую сессию перед запуском
+        await bot.session.close()
+        
+        # Создаем новую сессию
+        bot = Bot(token=BOT_TOKEN)
+        
+        # Запускаем polling
         await dp.start_polling(bot, allowed_updates=["message", "callback_query"])
         
     except Exception as e:

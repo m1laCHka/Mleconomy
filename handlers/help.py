@@ -12,43 +12,53 @@ HELP_PHOTO = "https://i.ibb.co/N6dqh7MQ/5953fda8-0711-46b4-90ab-80f1fc2955f3.jpg
 HELP_TEXT = """
 ❓ ПОМОЩЬ
 
-🔍 Основные команды:
-• /start — начать работу
-• /profile — открыть профиль
-• /statistics — статистика игр
-• /help — эта справка
+🎮 ИГРЫ:
+• Рулетка — напиши «рулетка» в чате
+• Дуэль — ответь на сообщение и напиши «дуэль [сумма]»
+• Котики — скоро
+• Казино — скоро
 
-🛍️ Функции:
-• Профиль — просмотр статистики
-• Магазин — покупка предметов
-• Ежедневный приз — получить награду
-• Переводы — отправить деньги другу
+💰 ЭКОНОМИКА:
+• Приз — ежедневный бонус
+• Магазин — скоро
+• Перевод — скоро
 
-💡 Советы:
-• Играй каждый день для бонусов
-• Участвуй в событиях
-• Присоединись к команде
+🏆 СОРЕВНОВАНИЯ:
+• Турнир — скоро
+• Квесты — скоро
+• Топ игроков — скоро
 
-❓ Остались вопросы? Свяжись с поддержкой: @m1lnv
+💍 СЕМЬЯ:
+• Брак — скоро
+• Развод — скоро
+• Дети — скоро
+
+👤 ПРОФИЛЬ:
+• /profile — свой профиль
+• /profile @user — чужой профиль
+• /stats — статистика игр
+
+🎁 ПРОЧЕЕ:
+• Промокоды — скоро
+• Достижения — скоро
+• Ранги — скоро
+
+💡 По вопросам: @m1lnv
 """
 
 def is_private_chat(message: Message) -> bool:
-    """Проверка, является ли чат личным"""
     return message.chat.type == "private"
 
 @router.message(Command("help"))
 async def help_command(message: Message):
-    """Команда /help"""
     try:
         if is_private_chat(message):
-            # В ЛС — с меню
             await message.answer_photo(
                 photo=HELP_PHOTO,
                 caption=HELP_TEXT,
                 reply_markup=get_main_menu()
             )
         else:
-            # В группе — без меню
             await message.answer_photo(
                 photo=HELP_PHOTO,
                 caption=HELP_TEXT
@@ -62,7 +72,6 @@ async def help_command(message: Message):
 
 @router.message(F.text == "❓ Помощь")
 async def help_button(message: Message):
-    """Кнопка помощи"""
     try:
         if is_private_chat(message):
             await message.answer_photo(

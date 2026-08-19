@@ -2,6 +2,7 @@
 
 from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery
+from aiogram.filters import Command  # ← ДОБАВЛЕН ЭТОТ ИМПОРТ
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from database.db import db
 from database.models import get_user, update_balance, update_stars

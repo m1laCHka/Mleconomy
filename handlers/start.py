@@ -33,18 +33,16 @@ async def start_command(message: Message):
         user_id = message.from_user.id
         username = message.from_user.username or "User"
         
-        # Проверяем, существует ли пользователь
         if await user_exists(db, user_id):
-            # Если уже зарегистрирован
             if is_private_chat(message):
-                # В личных сообщениях показываем меню
+                # В ЛС — с меню
                 await message.answer_photo(
                     photo=START_PHOTO,
                     caption="👋 Добро пожаловать! Выбери действие:",
                     reply_markup=get_main_menu()
                 )
             else:
-                # В группах без меню
+                # В группе — без меню
                 await message.answer_photo(
                     photo=START_PHOTO,
                     caption="👋 Добро пожаловать! Используй команды:\n"
@@ -53,7 +51,7 @@ async def start_command(message: Message):
                             "/statistics — статистика"
                 )
         else:
-            # Если первый раз — просим выбрать пол
+            # Первый раз — выбор пола
             await message.answer_photo(
                 photo=START_PHOTO,
                 caption="👋 Привет! Сначала выбери свой пол:",
@@ -71,12 +69,11 @@ async def start_command(message: Message):
 
 @router.callback_query(F.data == "gender_male")
 async def gender_male_callback(callback: CallbackQuery):
-    """Обработка выбора мужского пола"""
+    """Выбор мужского пола"""
     try:
         user_id = callback.from_user.id
         username = callback.from_user.username or "User"
         
-        # Проверяем, не существует ли уже пользователь
         if await user_exists(db, user_id):
             await callback.answer("Ты уже зарегистрирован!")
             try:
@@ -85,28 +82,19 @@ async def gender_male_callback(callback: CallbackQuery):
                 pass
             
             if is_private_chat(callback.message):
-                await callback.message.answer(
-                    "Главное меню:",
-                    reply_markup=get_main_menu()
-                )
+                await callback.message.answer("Главное меню:", reply_markup=get_main_menu())
             else:
-                await callback.message.answer(
-                    "Используй команды: /profile, /help, /statistics"
-                )
+                await callback.message.answer("Используй команды: /profile, /help")
             return
         
-        # Создаём пользователя с полом
         await create_user(db, user_id, username, gender="male")
-        
         await callback.answer("✅ Пол выбран: Мужской")
         
-        # Удаляем сообщение с выбором пола
         try:
             await callback.message.delete()
         except:
             pass
         
-        # Показываем главное меню только в личных сообщениях
         if is_private_chat(callback.message):
             await callback.message.answer(
                 "🎉 Отлично! Теперь ты зарегистрирован.\n"
@@ -118,10 +106,10 @@ async def gender_male_callback(callback: CallbackQuery):
             await callback.message.answer(
                 "🎉 Отлично! Теперь ты зарегистрирован.\n"
                 "💰 Твой стартовый баланс: 500 монет и 10 звёзд\n\n"
-                "Используй команды: /profile, /help, /statistics"
+                "Используй команды: /profile, /help"
             )
     except Exception as e:
-        print(f"❌ Ошибка при выборе мужского пола: {e}")
+        print(f"❌ Ошибка выбора мужского пола: {e}")
         try:
             await callback.answer("⚠️ Ошибка сервера", show_alert=True)
         except:
@@ -129,12 +117,11 @@ async def gender_male_callback(callback: CallbackQuery):
 
 @router.callback_query(F.data == "gender_female")
 async def gender_female_callback(callback: CallbackQuery):
-    """Обработка выбора женского пола"""
+    """Выбор женского пола"""
     try:
         user_id = callback.from_user.id
         username = callback.from_user.username or "User"
         
-        # Проверяем, не существует ли уже пользователь
         if await user_exists(db, user_id):
             await callback.answer("Ты уже зарегистрирована!")
             try:
@@ -143,28 +130,19 @@ async def gender_female_callback(callback: CallbackQuery):
                 pass
             
             if is_private_chat(callback.message):
-                await callback.message.answer(
-                    "Главное меню:",
-                    reply_markup=get_main_menu()
-                )
+                await callback.message.answer("Главное меню:", reply_markup=get_main_menu())
             else:
-                await callback.message.answer(
-                    "Используй команды: /profile, /help, /statistics"
-                )
+                await callback.message.answer("Используй команды: /profile, /help")
             return
         
-        # Создаём пользователя с полом
         await create_user(db, user_id, username, gender="female")
-        
         await callback.answer("✅ Пол выбран: Женский")
         
-        # Удаляем сообщение с выбором пола
         try:
             await callback.message.delete()
         except:
             pass
         
-        # Показываем главное меню только в личных сообщениях
         if is_private_chat(callback.message):
             await callback.message.answer(
                 "🎉 Отлично! Теперь ты зарегистрирована.\n"
@@ -176,10 +154,10 @@ async def gender_female_callback(callback: CallbackQuery):
             await callback.message.answer(
                 "🎉 Отлично! Теперь ты зарегистрирована.\n"
                 "💰 Твой стартовый баланс: 500 монет и 10 звёзд\n\n"
-                "Используй команды: /profile, /help, /statistics"
+                "Используй команды: /profile, /help"
             )
     except Exception as e:
-        print(f"❌ Ошибка при выборе женского пола: {e}")
+        print(f"❌ Ошибка выбора женского пола: {e}")
         try:
             await callback.answer("⚠️ Ошибка сервера", show_alert=True)
         except:

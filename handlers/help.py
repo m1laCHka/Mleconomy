@@ -41,26 +41,22 @@ async def help_command(message: Message):
     """Команда /help"""
     try:
         if is_private_chat(message):
-            # В личных сообщениях с меню
+            # В ЛС — с меню
             await message.answer_photo(
                 photo=HELP_PHOTO,
                 caption=HELP_TEXT,
                 reply_markup=get_main_menu()
             )
         else:
-            # В группах без меню
+            # В группе — без меню
             await message.answer_photo(
                 photo=HELP_PHOTO,
                 caption=HELP_TEXT
             )
     except Exception as e:
         print(f"❌ Ошибка отправки помощи: {e}")
-        # Запасной вариант без фото
         if is_private_chat(message):
-            await message.answer(
-                HELP_TEXT,
-                reply_markup=get_main_menu()
-            )
+            await message.answer(HELP_TEXT, reply_markup=get_main_menu())
         else:
             await message.answer(HELP_TEXT)
 
@@ -69,25 +65,19 @@ async def help_button(message: Message):
     """Кнопка помощи"""
     try:
         if is_private_chat(message):
-            # В личных сообщениях с меню
             await message.answer_photo(
                 photo=HELP_PHOTO,
                 caption=HELP_TEXT,
                 reply_markup=get_main_menu()
             )
         else:
-            # В группах без меню
             await message.answer_photo(
                 photo=HELP_PHOTO,
                 caption=HELP_TEXT
             )
     except Exception as e:
         print(f"❌ Ошибка отправки помощи (кнопка): {e}")
-        # Запасной вариант без фото
         if is_private_chat(message):
-            await message.answer(
-                HELP_TEXT,
-                reply_markup=get_main_menu()
-            )
+            await message.answer(HELP_TEXT, reply_markup=get_main_menu())
         else:
             await message.answer(HELP_TEXT)

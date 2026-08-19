@@ -14,9 +14,9 @@ router = Router()
 
 # Константы
 MIN_BET = 10
-COMMISSION = 0.10  # 10% комиссия
-ACCEPT_TIMER = 60   # секунд на принятие
-TURN_TIMER = 120    # секунд на ход
+COMMISSION = 0.10
+ACCEPT_TIMER = 60
+TURN_TIMER = 120
 
 # Фото для дуэли
 DUEL_PHOTO = "https://i.ibb.co/d4WXhwSV/345580c2-5ad0-435c-8ae4-ed6ad56ad6a2.jpg"
@@ -39,11 +39,9 @@ class DuelGame:
         self.accept_timer_task = None
         self.turn_timer_task = None
 
-        # Здоровье
         self.creator_hp = 100
         self.opponent_hp = 100
 
-        # Ходы (для одновременной системы)
         self.creator_moved = False
         self.opponent_moved = False
         self.creator_damage = 0
@@ -55,13 +53,11 @@ class DuelGame:
         self.last_attack_time = datetime.now()
 
     def get_hp_bar(self, hp: int) -> str:
-        """Красивый HP бар"""
-        filled = int(hp / 10)
+        filled = max(0, int(hp / 10))
         empty = 10 - filled
         return f"{'▰' * filled}{'▱' * empty}"
 
     def get_status_text(self) -> str:
-        """Текст текущего состояния дуэли"""
         return (
             f"⚔️ ДУЭЛЬ — РАУНД {self.round}\n"
             f"━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -75,8 +71,30 @@ class DuelGame:
             f"━━━━━━━━━━━━━━━━━━━━"
         )
 
+    def get_keyboard(self) -> InlineKeyboardMarkup:
+        """Клавиатура с отдельными кнопками для каждого игрока"""
+        buttons = []
+        
+        # Кнопка для создателя
+        if self.creator_moved:
+            creator_btn = InlineKeyboardButton(text=f"✅ @{self.creator_name} сходил", callback_data="duel_waiting")
+        else:
+            creator_btn = InlineKeyboardButton(text=f"⚔️ @{self.creator_name} атаковать", callback_data="duel_attack_creator")
+        buttons.append([creator_btn])
+        
+        # Кнопка для противника
+        if self.opponent_moved:
+            opponent_btn = InlineKeyboardButton(text=f"✅ @{self.opponent_name} сходил", callback_data="duel_waiting")
+        else:
+            opponent_btn = InlineKeyboardButton(text=f"⚔️ @{self.opponent_name} атаковать", callback_data="duel_attack_opponent")
+        buttons.append([opponent_btn])
+        
+        # Кнопка "Сдаться"
+        buttons.append([InlineKeyboardButton(text="🏳️ Сдаться", callback_data="duel_surrender")])
+        
+        return InlineKeyboardMarkup(inline_keyboard=buttons)
+
     def reset_round(self):
-        """Сбросить ходы для нового раунда"""
         self.creator_moved = False
         self.opponent_moved = False
         self.creator_damage = 0
@@ -173,7 +191,7 @@ async def finish_duel(chat_id: int, winner_id: int = None, reason: str = "win"):
                 caption=text
             )
         except Exception as e:
-            print(f"❌ Ошибка отправки результата дуэли: {e}")
+            print(f"❌ Ошибка отправки результата: {e}")
 
         del active_duels[chat_id]
 
@@ -187,11 +205,13 @@ async def duel_turn_timeout(chat_id: int):
     if chat_id in active_duels and active_duels[chat_id].is_active and active_duels[chat_id].is_accepted:
         duel = active_duels[chat_id]
         
+        # Проверяем, кто не сделал ход
         if not duel.creator_moved and duel.opponent_moved:
             await finish_duel(chat_id, duel.opponent_id, "timeout")
         elif not duel.opponent_moved and duel.creator_moved:
             await finish_duel(chat_id, duel.creator_id, "timeout")
         elif not duel.creator_moved and not duel.opponent_moved:
+            # Оба не сходили — случайный победитель
             winner = random.choice([duel.creator_id, duel.opponent_id])
             await finish_duel(chat_id, winner, "timeout")
 
@@ -247,7 +267,7 @@ async def duel_start(message: Message):
             return
 
         if opponent_user['balance'] < bet:
-            await message.answer(f"❌ У противника недостаточно монет! У него: {opponent_user['balance']}💰")
+            await message.answer(f"❌ У противника недостаточно монет!")
             return
 
         await update_balance(db, message.from_user.id, -bet)
@@ -291,13 +311,13 @@ async def duel_start(message: Message):
         await message.answer("⚠️ Ошибка сервера")
 
 async def duel_accept_timeout(chat_id: int):
-    """Таймер на принятие дуэли"""
+    """Таймер на принятие"""
     await asyncio.sleep(ACCEPT_TIMER)
     
     if chat_id in active_duels and active_duels[chat_id].is_active and not active_duels[chat_id].is_accepted:
         await finish_duel(chat_id, reason="no_accept")
 
-# Обработка кнопок дуэли
+# Обработка кнопок
 @router.callback_query(F.data.startswith("duel_"))
 async def duel_callback(callback: CallbackQuery):
     """Обработка кнопок дуэли"""
@@ -312,9 +332,10 @@ async def duel_callback(callback: CallbackQuery):
         action = callback.data.replace("duel_", "")
         user_id = callback.from_user.id
 
+        # Принятие
         if action == "accept":
             if user_id != duel.opponent_id:
-                await callback.answer("❌ Только противник может принять вызов!", show_alert=True)
+                await callback.answer("❌ Только противник может принять!", show_alert=True)
                 return
 
             opponent = await get_user(db, user_id)
@@ -331,15 +352,13 @@ async def duel_callback(callback: CallbackQuery):
 
             await callback.message.edit_caption(
                 caption=duel.get_status_text(),
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="⚔️ Атаковать", callback_data="duel_attack")],
-                    [InlineKeyboardButton(text="🏳️ Сдаться", callback_data="duel_surrender")]
-                ])
+                reply_markup=duel.get_keyboard()
             )
 
             duel.turn_timer_task = asyncio.create_task(duel_turn_timeout(chat_id))
             return
 
+        # Отклонение
         if action == "decline":
             if user_id != duel.opponent_id:
                 await callback.answer("❌ Только противник может отклонить!", show_alert=True)
@@ -348,114 +367,38 @@ async def duel_callback(callback: CallbackQuery):
             await callback.answer("Дуэль отклонена")
             return
 
+        # Заглушка
         if action == "waiting":
-            await callback.answer("⏳ Ожидай противника...")
+            await callback.answer("⏳ Ожидание...")
             return
 
-        if action == "attack":
-            if not duel.is_accepted:
-                await callback.answer("❌ Дуэль еще не началась!", show_alert=True)
+        # Атака создателя
+        if action == "attack_creator":
+            if user_id != duel.creator_id:
+                await callback.answer("❌ Это кнопка другого игрока!", show_alert=True)
                 return
-
-            if user_id not in [duel.creator_id, duel.opponent_id]:
-                await callback.answer("❌ Ты не участвуешь в дуэли!", show_alert=True)
+            if duel.creator_moved:
+                await callback.answer("✅ Ты уже сходил!", show_alert=True)
                 return
-
-            if user_id == duel.creator_id and duel.creator_moved:
-                await callback.answer("✅ Ты уже сделал ход!", show_alert=True)
-                return
-            if user_id == duel.opponent_id and duel.opponent_moved:
-                await callback.answer("✅ Ты уже сделал ход!", show_alert=True)
-                return
-
-            dodged = random.random() < 0.15
-            damage = random.randint(1, 50)  # ← УРОН 1-50
-
-            if user_id == duel.creator_id:
-                duel.creator_moved = True
-                duel.creator_damage = damage
-                duel.creator_dodged = dodged
-            else:
-                duel.opponent_moved = True
-                duel.opponent_damage = damage
-                duel.opponent_dodged = dodged
-
-            await callback.answer(f"⚔️ Урон: {damage} HP" + (" 💨" if dodged else ""))
-
-            if duel.creator_moved and duel.opponent_moved:
-                if not duel.creator_dodged:
-                    duel.creator_hp -= duel.opponent_damage
-                if not duel.opponent_dodged:
-                    duel.opponent_hp -= duel.creator_damage
-
-                if duel.creator_hp <= 0 and duel.opponent_hp <= 0:
-                    await finish_duel(chat_id, reason="draw")
-                    await callback.answer("💀 Ничья!")
-                    return
-                elif duel.creator_hp <= 0:
-                    await finish_duel(chat_id, duel.opponent_id)
-                    await callback.answer("💥 Победа!")
-                    return
-                elif duel.opponent_hp <= 0:
-                    await finish_duel(chat_id, duel.creator_id)
-                    await callback.answer("💥 Победа!")
-                    return
-
-                result_text = (
-                    f"⚔️ ДУЭЛЬ — РАУНД {duel.round}\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n\n"
-                )
-                
-                if duel.creator_dodged:
-                    result_text += f"💨 @{duel.creator_name} увернулся!\n"
-                else:
-                    result_text += f"💥 @{duel.opponent_name} нанес {duel.opponent_damage} урона!\n"
-                
-                if duel.opponent_dodged:
-                    result_text += f"💨 @{duel.opponent_name} увернулся!\n"
-                else:
-                    result_text += f"💥 @{duel.creator_name} нанес {duel.creator_damage} урона!\n"
-                
-                duel.reset_round()
-                
-                result_text += (
-                    f"\n❤️ @{duel.creator_name}: {duel.creator_hp} HP\n"
-                    f"{duel.get_hp_bar(duel.creator_hp)}\n\n"
-                    f"❤️ @{duel.opponent_name}: {duel.opponent_hp} HP\n"
-                    f"{duel.get_hp_bar(duel.opponent_hp)}\n\n"
-                    f"⏳ Ожидание ходов...\n"
-                    f"━━━━━━━━━━━━━━━━━━━━"
-                )
-
-                await callback.message.edit_caption(
-                    caption=result_text,
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="⚔️ Атаковать", callback_data="duel_attack")],
-                        [InlineKeyboardButton(text="🏳️ Сдаться", callback_data="duel_surrender")]
-                    ])
-                )
-
-                if duel.turn_timer_task:
-                    duel.turn_timer_task.cancel()
-                duel.turn_timer_task = asyncio.create_task(duel_turn_timeout(chat_id))
-            else:
-                await callback.message.edit_caption(
-                    caption=(
-                        f"⚔️ ДУЭЛЬ — РАУНД {duel.round}\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n\n"
-                        f"⏳ Ожидание хода противника..."
-                    ),
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="⏳ Ожидание...", callback_data="duel_waiting")]
-                    ])
-                )
+            await process_attack(callback, duel, "creator")
             return
 
+        # Атака противника
+        if action == "attack_opponent":
+            if user_id != duel.opponent_id:
+                await callback.answer("❌ Это кнопка другого игрока!", show_alert=True)
+                return
+            if duel.opponent_moved:
+                await callback.answer("✅ Ты уже сходил!", show_alert=True)
+                return
+            await process_attack(callback, duel, "opponent")
+            return
+
+        # Сдаться
         if action == "surrender":
             if user_id not in [duel.creator_id, duel.opponent_id]:
-                await callback.answer("❌ Ты не участвуешь в дуэли!", show_alert=True)
+                await callback.answer("❌ Ты не участвуешь!", show_alert=True)
                 return
-
             winner_id = duel.opponent_id if user_id == duel.creator_id else duel.creator_id
             await finish_duel(chat_id, winner_id, "surrender")
             await callback.answer("🏳️ Ты сдался!")
@@ -464,3 +407,88 @@ async def duel_callback(callback: CallbackQuery):
     except Exception as e:
         print(f"❌ Ошибка в дуэли: {e}")
         await callback.answer("⚠️ Ошибка сервера", show_alert=True)
+
+async def process_attack(callback: CallbackQuery, duel: DuelGame, attacker: str):
+    """Обработка атаки"""
+    try:
+        dodged = random.random() < 0.15
+        damage = random.randint(1, 50)
+
+        if attacker == "creator":
+            duel.creator_moved = True
+            duel.creator_damage = damage
+            duel.creator_dodged = dodged
+        else:
+            duel.opponent_moved = True
+            duel.opponent_damage = damage
+            duel.opponent_dodged = dodged
+
+        await callback.answer(f"⚔️ Урон: {damage} HP" + (" 💨" if dodged else ""))
+
+        # Проверяем, оба ли сходили
+        if duel.creator_moved and duel.opponent_moved:
+            # Применяем урон
+            if not duel.creator_dodged:
+                duel.creator_hp -= duel.opponent_damage
+            if not duel.opponent_dodged:
+                duel.opponent_hp -= duel.creator_damage
+
+            # Проверяем результат
+            if duel.creator_hp <= 0 and duel.opponent_hp <= 0:
+                await finish_duel(duel.chat_id, reason="draw")
+                await callback.answer("💀 Ничья!")
+                return
+            elif duel.creator_hp <= 0:
+                await finish_duel(duel.chat_id, duel.opponent_id)
+                await callback.answer("💥 Победа!")
+                return
+            elif duel.opponent_hp <= 0:
+                await finish_duel(duel.chat_id, duel.creator_id)
+                await callback.answer("💥 Победа!")
+                return
+
+            # Новый раунд
+            result_text = (
+                f"⚔️ ДУЭЛЬ — РАУНД {duel.round}\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n\n"
+            )
+            
+            if duel.creator_dodged:
+                result_text += f"💨 @{duel.creator_name} увернулся!\n"
+            else:
+                result_text += f"💥 @{duel.opponent_name} нанес {duel.opponent_damage} урона!\n"
+            
+            if duel.opponent_dodged:
+                result_text += f"💨 @{duel.opponent_name} увернулся!\n"
+            else:
+                result_text += f"💥 @{duel.creator_name} нанес {duel.creator_damage} урона!\n"
+            
+            duel.reset_round()
+            
+            result_text += (
+                f"\n❤️ @{duel.creator_name}: {duel.creator_hp} HP\n"
+                f"{duel.get_hp_bar(duel.creator_hp)}\n\n"
+                f"❤️ @{duel.opponent_name}: {duel.opponent_hp} HP\n"
+                f"{duel.get_hp_bar(duel.opponent_hp)}\n\n"
+                f"⏳ Ожидание ходов...\n"
+                f"━━━━━━━━━━━━━━━━━━━━"
+            )
+
+            await callback.message.edit_caption(
+                caption=result_text,
+                reply_markup=duel.get_keyboard()
+            )
+
+            if duel.turn_timer_task:
+                duel.turn_timer_task.cancel()
+            duel.turn_timer_task = asyncio.create_task(duel_turn_timeout(duel.chat_id))
+        else:
+            # Ждем второго игрока
+            await callback.message.edit_caption(
+                caption=duel.get_status_text(),
+                reply_markup=duel.get_keyboard()
+            )
+
+    except Exception as e:
+        print(f"❌ Ошибка атаки: {e}")
+        await callback.answer("⚠️ Ошибка", show_alert=True)

@@ -9,21 +9,16 @@ from keyboards.main_menu import get_main_menu
 
 router = Router()
 
-# Фото для профиля
 FEMALE_PHOTO = "https://i.ibb.co/RMbs94m/584b2c22-ff9b-491f-bccf-63fa7e692f6a.jpg"
 MALE_PHOTO = "https://i.ibb.co/pv7by3Y9/7e592789-6a08-4897-bfaa-054df3735f95.jpg"
 
 def is_private_chat(message: Message) -> bool:
-    """Проверка, является ли чат личным"""
     return message.chat.type == "private"
 
 def get_rank(wins: int, total_games: int) -> str:
-    """Определить ранг игрока по винрейту"""
     if total_games < 10:
         return "🆕 Новобранец"
-    
     winrate = (wins / total_games) * 100 if total_games > 0 else 0
-    
     if winrate < 20:
         return "🥚 Новичок"
     elif winrate < 40:
@@ -40,45 +35,32 @@ def get_rank(wins: int, total_games: int) -> str:
         return "🌟 Бог игры"
 
 def get_vip_status(user) -> str:
-    """Получить статус VIP"""
     if user.get('is_vip'):
         return f"✅ VIP (до {user['vip_until']})"
     return "❌ Нет VIP"
 
 def safe_winrate(wins: int, total: int) -> float:
-    """Безопасное вычисление винрейта"""
     if total > 0:
         return (wins / total) * 100
     return 0.0
 
 async def show_profile(message: Message, user_id: int, target_user_id: int = None):
-    """Показать профиль пользователя"""
     try:
-        # Если передан target_user_id, показываем его профиль
         profile_id = target_user_id if target_user_id else user_id
-        
         user = await get_user(db, profile_id)
         
         if not user:
-            await message.answer(
-                "❌ Этот пользователь не зарегистрирован в боте.\n"
-                "Попросите его написать /start"
-            )
+            await message.answer("❌ Этот пользователь не зарегистрирован в боте.")
             return
         
-        # Выбираем фото в зависимости от пола
         photo = FEMALE_PHOTO if user.get('gender') == 'female' else MALE_PHOTO
-        
-        # Определяем отображаемое имя
         display_name = user.get('custom_nick') or f"@{user.get('username', 'User')}"
         
-        # Вычисляем статистику с защитой от None
         total_games = user.get('total_games') or 0
         wins = user.get('wins') or 0
         losses = user.get('losses') or 0
         winrate = safe_winrate(wins, total_games)
         
-        # Определяем лучшую игру
         best_game = "Нет игр"
         best_winrate = 0.0
         
@@ -96,24 +78,14 @@ async def show_profile(message: Message, user_id: int, target_user_id: int = Non
                     best_winrate = game_winrate
                     best_game = f"{game_name} ({game_winrate:.1f}%)"
         
-        # Получаем ранг
         rank = get_rank(wins, total_games)
-        
-        # Получаем VIP статус
         vip_status = get_vip_status(user)
-        
-        # Получаем баланс и звёзды с защитой
         balance = user.get('balance') or 0
         stars = user.get('stars') or 0
         
-        # Получаем дату регистрации
         created_at = user.get('created_at')
-        if created_at:
-            created_date = created_at.strftime('%d.%m.%Y')
-        else:
-            created_date = "Неизвестно"
+        created_date = created_at.strftime('%d.%m.%Y') if created_at else "Неизвестно"
         
-        # Формируем профиль
         profile_text = f"""
 👤 ПРОФИЛЬ ИГРОКА
 
@@ -142,7 +114,7 @@ async def show_profile(message: Message, user_id: int, target_user_id: int = Non
 📅 Регистрация: {created_date}
 """
         
-        # Показываем меню только в личных сообщениях
+        # Меню ТОЛЬКО в ЛС
         if is_private_chat(message):
             await message.answer_photo(
                 photo=photo,
@@ -150,29 +122,22 @@ async def show_profile(message: Message, user_id: int, target_user_id: int = Non
                 reply_markup=get_main_menu()
             )
         else:
-            # В группах без меню
             await message.answer_photo(
                 photo=photo,
                 caption=profile_text
             )
     except Exception as e:
-        print(f"❌ Ошибка получения профиля: {e}")
-        await message.answer(
-            "⚠️ Ошибка сервера, попробуй позже"
-        )
+        print(f"❌ Ошибка профиля: {e}")
+        await message.answer("⚠️ Ошибка сервера")
 
 async def show_statistics(message: Message, user_id: int):
-    """Показать подробную статистику игр"""
     try:
         user = await get_user(db, user_id)
         
         if not user:
-            await message.answer(
-                "❌ Сначала пройди регистрацию через /start"
-            )
+            await message.answer("❌ Сначала пройди регистрацию через /start")
             return
         
-        # Получаем все значения с защитой от None
         roulette_wins = user.get('roulette_wins') or 0
         roulette_games = user.get('roulette_games') or 0
         duel_wins = user.get('duel_wins') or 0
@@ -185,7 +150,6 @@ async def show_statistics(message: Message, user_id: int):
         total_games = user.get('total_games') or 0
         total_losses = user.get('losses') or 0
         
-        # Статистика по каждой игре
         stats_text = f"""
 📊 СТАТИСТИКА ИГР
 
@@ -214,122 +178,79 @@ async def show_statistics(message: Message, user_id: int):
 💡 Играй в игры, чтобы увидеть статистику!
 """
         
-        # Показываем меню только в личных сообщениях
+        # Меню ТОЛЬКО в ЛС
         if is_private_chat(message):
-            await message.answer(
-                stats_text,
-                reply_markup=get_main_menu()
-            )
+            await message.answer(stats_text, reply_markup=get_main_menu())
         else:
-            # В группах без меню
             await message.answer(stats_text)
     except Exception as e:
-        print(f"❌ Ошибка получения статистики: {e}")
-        await message.answer(
-            "⚠️ Ошибка сервера, попробуй позже"
-        )
+        print(f"❌ Ошибка статистики: {e}")
+        await message.answer("⚠️ Ошибка сервера")
 
-# Обработчики команд
-
+# Обработчики
 @router.message(Command("profile"))
 async def profile_command(message: Message):
-    """Команда /profile — свой профиль или чужой по reply"""
-    try:
-        # Проверяем, есть ли ответ на сообщение
-        if message.reply_to_message:
-            # Показываем профиль того, на кого ответили
-            target_id = message.reply_to_message.from_user.id
-            await show_profile(message, message.from_user.id, target_id)
-        else:
-            # Показываем свой профиль
-            await show_profile(message, message.from_user.id)
-    except Exception as e:
-        print(f"❌ Ошибка в /profile: {e}")
+    if message.reply_to_message:
+        target_id = message.reply_to_message.from_user.id
+        await show_profile(message, message.from_user.id, target_id)
+    else:
         await show_profile(message, message.from_user.id)
 
 @router.message(Command("p"))
 async def profile_short_command(message: Message):
-    """Команда /p"""
-    try:
-        if message.reply_to_message:
-            target_id = message.reply_to_message.from_user.id
-            await show_profile(message, message.from_user.id, target_id)
-        else:
-            await show_profile(message, message.from_user.id)
-    except Exception as e:
-        print(f"❌ Ошибка в /p: {e}")
+    if message.reply_to_message:
+        target_id = message.reply_to_message.from_user.id
+        await show_profile(message, message.from_user.id, target_id)
+    else:
         await show_profile(message, message.from_user.id)
 
 @router.message(Command("профиль"))
 async def profile_ru_command(message: Message):
-    """Команда /профиль"""
-    try:
-        if message.reply_to_message:
-            target_id = message.reply_to_message.from_user.id
-            await show_profile(message, message.from_user.id, target_id)
-        else:
-            await show_profile(message, message.from_user.id)
-    except Exception as e:
-        print(f"❌ Ошибка в /профиль: {e}")
+    if message.reply_to_message:
+        target_id = message.reply_to_message.from_user.id
+        await show_profile(message, message.from_user.id, target_id)
+    else:
         await show_profile(message, message.from_user.id)
 
 @router.message(F.text == "👤 Профиль")
 async def profile_button(message: Message):
-    """Кнопка профиля"""
     await show_profile(message, message.from_user.id)
 
-# Обработка /profile @username
 @router.message(F.text.startswith("/profile @"))
 async def profile_by_username(message: Message):
-    """Команда /profile @username"""
     try:
-        # Извлекаем username
         username = message.text.split("@")[1].strip()
-        
-        # Ищем пользователя по username
         target_user = await db.fetchrow(
             "SELECT user_id FROM users WHERE username = $1",
             username
         )
-        
         if target_user:
             await show_profile(message, message.from_user.id, target_user['user_id'])
         else:
-            await message.answer(
-                f"❌ Пользователь @{username} не найден в боте."
-            )
+            await message.answer(f"❌ Пользователь @{username} не найден.")
     except Exception as e:
-        print(f"❌ Ошибка поиска пользователя: {e}")
-        await message.answer(
-            "⚠️ Ошибка при поиске пользователя"
-        )
+        print(f"❌ Ошибка поиска: {e}")
 
 @router.message(Command("statistics"))
 async def statistics_command(message: Message):
-    """Команда /statistics"""
     await show_statistics(message, message.from_user.id)
 
 @router.message(Command("stats"))
 async def stats_command(message: Message):
-    """Команда /stats"""
     await show_statistics(message, message.from_user.id)
 
 @router.message(Command("stat"))
 async def stat_command(message: Message):
-    """Команда /stat"""
     await show_statistics(message, message.from_user.id)
 
 @router.message(Command("статистика"))
 async def statistics_ru_command(message: Message):
-    """Команда /статистика"""
     await show_statistics(message, message.from_user.id)
 
 @router.message(Command("стата"))
 async def stats_ru_command(message: Message):
-    """Команда /стата"""
     await show_statistics(message, message.from_user.id)
 
 @router.message(F.text == "📊 Статистика")
 async def statistics_button(message: Message):
-    """Кнопка статистики"""
     await show_statistics(message, message.from_user.id)

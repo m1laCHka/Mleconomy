@@ -191,6 +191,12 @@ async def update_stars(db, user_id: int, amount: int):
 async def update_stats(db, user_id: int, game_type: str, won: bool):
     """Обновить статистику игр пользователя"""
     try:
+        # Обновляем last_active_date
+        await db.execute(
+            "UPDATE users SET last_active_date = CURRENT_DATE WHERE user_id = $1",
+            user_id
+        )
+        
         # Общая статистика
         await db.execute(
             """

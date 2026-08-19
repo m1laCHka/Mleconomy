@@ -9,7 +9,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from config import BOT_TOKEN, PORT
 from database.db import db
 from database.models import init_db
-from handlers import start, profile, help, admin, roulette, duel, cats, casino
+from handlers import start, profile, help, admin, roulette, duel, cats, casino, prize
 from utils.logger import logger
 
 async def health_check(request):
@@ -43,6 +43,7 @@ async def main():
         dp.include_router(duel.router)
         dp.include_router(cats.router)
         dp.include_router(casino.router)
+        dp.include_router(prize.router)
         
         # Создаем веб-сервер для Render
         app = web.Application()

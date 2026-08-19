@@ -52,23 +52,18 @@ async def check_daily_games(user_id: int) -> int:
         if not user:
             return 0
         
-        # Проверяем last_active_date
         last_active = user.get('last_active_date')
         today = date.today()
         
         if last_active != today:
             return 0
         
-        # Если дата сегодня — считаем, что играл
-        # Можно проверить total_games, но он общий за всё время
-        # Для простоты — если last_active_date == today, значит играл
         return 1
     except Exception as e:
         print(f"❌ Ошибка проверки игр: {e}")
         return 0
 
 async def check_prize_today(user_id: int) -> bool:
-    """Проверить, получал ли приз сегодня"""
     try:
         user = await get_user(db, user_id)
         if not user:
@@ -79,9 +74,10 @@ async def check_prize_today(user_id: int) -> bool:
         print(f"❌ Ошибка проверки приза: {e}")
         return False
 
-# Команда "приз"
-@router.message(F.text.lower() == "приз")
+# Кнопка "🎁 Приз" и команда "приз"
 @router.message(F.text == "🎁 Приз")
+@router.message(F.text.lower() == "приз")
+@router.message(Command("prize"))
 async def prize_command(message: Message):
     """Ежедневный приз"""
     try:
@@ -94,7 +90,6 @@ async def prize_command(message: Message):
             await message.answer("❌ Сначала пройди регистрацию через /start")
             return
         
-        # Проверяем баланс
         if (user.get('balance') or 0) < 10:
             await message.answer(
                 f"🎁 ЕЖЕДНЕВНЫЙ ПРИЗ\n"
@@ -106,7 +101,6 @@ async def prize_command(message: Message):
             )
             return
         
-        # Проверяем, получал ли приз
         if await check_prize_today(message.from_user.id):
             await message.answer(
                 f"🎁 ЕЖЕДНЕВНЫЙ ПРИЗ\n"
@@ -117,7 +111,6 @@ async def prize_command(message: Message):
             )
             return
         
-        # Проверяем условие
         games_today = await check_daily_games(message.from_user.id)
         
         if games_today < 1:
@@ -137,7 +130,6 @@ async def prize_command(message: Message):
             )
             return
         
-        # Показываем звёзды
         await message.answer(
             f"🎁 ЕЖЕДНЕВНЫЙ ПРИЗ\n"
             f"━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -156,10 +148,8 @@ async def prize_command(message: Message):
         print(f"❌ Ошибка приза: {e}")
         await message.answer("⚠️ Ошибка сервера")
 
-# Обработка выбора звезды
 @router.callback_query(F.data.startswith("prize_"))
 async def prize_callback(callback: CallbackQuery):
-    """Обработка выбора звезды"""
     try:
         star_index = int(callback.data.replace("prize_", ""))
         
@@ -217,7 +207,6 @@ async def prize_callback(callback: CallbackQuery):
 
 @router.callback_query(F.data == "prize_reveal")
 async def prize_reveal_callback(callback: CallbackQuery):
-    """Показать что могло выпасть"""
     try:
         prizes = generate_prizes()
         

@@ -49,7 +49,6 @@ class CatGame:
         self.solo_answered = False
     
     def generate_cats(self):
-        """Сгенерировать котиков"""
         total = random.randint(5, MAX_CATS)
         yellow = random.randint(1, total - 1)
         black = total - yellow
@@ -61,7 +60,6 @@ class CatGame:
         random.shuffle(self.cats)
     
     def get_cats_text(self) -> str:
-        """Получить текст с котиками (по 10 в строку)"""
         text = ""
         for i in range(0, len(self.cats), 10):
             text += " ".join(self.cats[i:i+10]) + "\n"
@@ -82,7 +80,6 @@ class CatGame:
         ])
 
 async def finish_solo_game(chat_id: int):
-    """Завершить одиночную игру по таймеру"""
     try:
         await asyncio.sleep(SOLO_TIMER)
         
@@ -116,7 +113,6 @@ async def finish_solo_game(chat_id: int):
 # Команда "котики"
 @router.message(F.text.lower().startswith("котики"))
 async def cats_start(message: Message):
-    """Начать игру в котиков"""
     try:
         if message.chat.type == "private":
             await message.answer("❌ Котики доступны только в группах!")
@@ -179,7 +175,6 @@ async def cats_start(message: Message):
 # Обработка кнопок
 @router.callback_query(F.data.startswith("cat_"))
 async def cats_callback(callback: CallbackQuery):
-    """Обработка кнопок котиков"""
     try:
         chat_id = callback.message.chat.id
         game = active_cat_games.get(chat_id)
@@ -306,7 +301,6 @@ async def cats_callback(callback: CallbackQuery):
         await callback.answer("⚠️ Ошибка сервера", show_alert=True)
 
 async def accept_timeout(chat_id: int):
-    """Таймер на принятие дуэли"""
     await asyncio.sleep(60)
     
     if chat_id in active_cat_games and active_cat_games[chat_id].is_active and not active_cat_games[chat_id].is_accepted:
@@ -324,15 +318,11 @@ async def accept_timeout(chat_id: int):
         
         del active_cat_games[chat_id]
 
-# Обработка ответов (универсальный обработчик)
+# Обработка ВСЕХ сообщений для котиков (только числа)
 @router.message()
-async def cats_answer(message: Message):
-    """Обработка числового ответа для котиков"""
+async def cats_answer_handler(message: Message):
+    """Обработчик для ответов в котиках"""
     try:
-        # Проверяем, что сообщение — число
-        if not message.text or not message.text.strip().isdigit():
-            return
-        
         chat_id = message.chat.id
         game = active_cat_games.get(chat_id)
         
@@ -342,7 +332,12 @@ async def cats_answer(message: Message):
         if not game.cats:
             return
         
-        answer = int(message.text.strip())
+        # Проверяем, что это число
+        text = message.text.strip() if message.text else ""
+        if not text.isdigit():
+            return
+        
+        answer = int(text)
         user_id = message.from_user.id
         
         # Одиночный режим
@@ -401,10 +396,10 @@ async def cats_answer(message: Message):
                 return
             
             if user_id == game.creator_id:
-                if game.creator_attempts <= 0 or game.creator_guessed:
+                if game.creator_attempts <= 0:
                     return
             else:
-                if game.opponent_attempts <= 0 or game.opponent_guessed:
+                if game.opponent_attempts <= 0:
                     return
             
             if answer == game.yellow_count:

@@ -5,7 +5,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from database.db import db
 from database.models import get_user
-from keyboards.main_menu import get_main_menu
+from keyboards.main_menu import get_main_menu, get_profile_menu, get_games_menu, get_chat_games_menu, get_bot_games_menu
 
 router = Router()
 
@@ -119,7 +119,7 @@ async def show_profile(message: Message, user_id: int, target_user_id: int = Non
             await message.answer_photo(
                 photo=photo,
                 caption=profile_text,
-                reply_markup=get_main_menu()
+                reply_markup=get_profile_menu()  # ← Меню профиля
             )
         else:
             await message.answer_photo(
@@ -178,16 +178,15 @@ async def show_statistics(message: Message, user_id: int):
 💡 Играй в игры, чтобы увидеть статистику!
 """
         
-        # Меню ТОЛЬКО в ЛС
         if is_private_chat(message):
-            await message.answer(stats_text, reply_markup=get_main_menu())
+            await message.answer(stats_text, reply_markup=get_profile_menu())
         else:
             await message.answer(stats_text)
     except Exception as e:
         print(f"❌ Ошибка статистики: {e}")
         await message.answer("⚠️ Ошибка сервера")
 
-# Обработчики
+# Обработчики команд
 @router.message(Command("profile"))
 async def profile_command(message: Message):
     if message.reply_to_message:
@@ -215,6 +214,46 @@ async def profile_ru_command(message: Message):
 @router.message(F.text == "👤 Профиль")
 async def profile_button(message: Message):
     await show_profile(message, message.from_user.id)
+
+# Кнопки меню
+@router.message(F.text == "🎮 Игры")
+async def games_button(message: Message):
+    if is_private_chat(message):
+        await message.answer("🎮 Выбери тип игр:", reply_markup=get_games_menu())
+
+@router.message(F.text == "💬 Игры в чате")
+async def chat_games_button(message: Message):
+    if is_private_chat(message):
+        await message.answer(
+            "💬 Игры для чата:\n\n"
+            "🎰 Рулетка — напиши 'рулетка' в группе\n"
+            "⚔️ Дуэль — ответь на сообщение и напиши 'дуэль 100'\n"
+            "🐱 Котики — скоро!",
+            reply_markup=get_chat_games_menu()
+        )
+
+@router.message(F.text == "🤖 Игры с ботом")
+async def bot_games_button(message: Message):
+    if is_private_chat(message):
+        await message.answer(
+            "🤖 Игры с ботом:\n\n"
+            "🎰 Казино — скоро!",
+            reply_markup=get_bot_games_menu()
+        )
+
+@router.message(F.text == "🔙 Назад")
+async def back_button(message: Message):
+    if is_private_chat(message):
+        await message.answer("Главное меню:", reply_markup=get_main_menu())
+
+@router.message(F.text == "💳 Перевод")
+async def transfer_button(message: Message):
+    if is_private_chat(message):
+        await message.answer("💳 Переводы скоро будут доступны!")
+
+@router.message(F.text == "📊 Статистика")
+async def statistics_button(message: Message):
+    await show_statistics(message, message.from_user.id)
 
 @router.message(F.text.startswith("/profile @"))
 async def profile_by_username(message: Message):
@@ -249,8 +288,4 @@ async def statistics_ru_command(message: Message):
 
 @router.message(Command("стата"))
 async def stats_ru_command(message: Message):
-    await show_statistics(message, message.from_user.id)
-
-@router.message(F.text == "📊 Статистика")
-async def statistics_button(message: Message):
     await show_statistics(message, message.from_user.id)

@@ -191,7 +191,6 @@ async def cats_callback(callback: CallbackQuery):
         action = callback.data.replace("cat_", "")
         user_id = callback.from_user.id
         
-        # Режим "Один"
         if action == "solo":
             if user_id != game.creator_id:
                 await callback.answer("❌ Только создатель может выбрать!", show_alert=True)
@@ -213,11 +212,9 @@ async def cats_callback(callback: CallbackQuery):
                 f"✏️ Напиши число в чат"
             )
             
-            # Запускаем таймер
             game.timer_task = asyncio.create_task(finish_solo_game(chat_id))
             return
         
-        # Режим "С кем-то"
         if action == "duel":
             if user_id != game.creator_id:
                 await callback.answer("❌ Только создатель может выбрать!", show_alert=True)
@@ -239,7 +236,6 @@ async def cats_callback(callback: CallbackQuery):
             game.accept_timer_task = asyncio.create_task(accept_timeout(chat_id))
             return
         
-        # Принятие дуэли
         if action == "accept":
             if game.mode != "duel":
                 await callback.answer("❌ Это не дуэль!", show_alert=True)
@@ -283,7 +279,6 @@ async def cats_callback(callback: CallbackQuery):
             )
             return
         
-        # Отклонение
         if action == "decline":
             if user_id == game.creator_id:
                 await callback.answer("❌ Только противник может отклонить!", show_alert=True)
@@ -329,11 +324,15 @@ async def accept_timeout(chat_id: int):
         
         del active_cat_games[chat_id]
 
-# Обработка ответов (числа)
-@router.message(F.text.regexp(r'^\d+$'))
+# Обработка ответов (универсальный обработчик)
+@router.message()
 async def cats_answer(message: Message):
-    """Обработка числового ответа"""
+    """Обработка числового ответа для котиков"""
     try:
+        # Проверяем, что сообщение — число
+        if not message.text or not message.text.strip().isdigit():
+            return
+        
         chat_id = message.chat.id
         game = active_cat_games.get(chat_id)
         
@@ -343,11 +342,7 @@ async def cats_answer(message: Message):
         if not game.cats:
             return
         
-        try:
-            answer = int(message.text)
-        except:
-            return
-        
+        answer = int(message.text.strip())
         user_id = message.from_user.id
         
         # Одиночный режим

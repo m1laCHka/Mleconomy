@@ -7,7 +7,7 @@ from keyboards.main_menu import get_main_menu
 
 router = Router()
 
-HELP_PHOTO = "https://i.ibb.co/N6dqh7MQ/5953fda8-0711-46b4-90ab-80f1fc2955f3.jpg"
+HELP_PHOTO = "https://i.ibb.co/d4WXhwSV/345580c2-5ad0-435c-8ae4-ed6ad56ad6a2.jpg"
 
 HELP_TEXT = """
 ❓ ПОМОЩЬ

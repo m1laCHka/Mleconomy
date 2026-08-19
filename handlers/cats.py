@@ -12,10 +12,10 @@ router = Router()
 
 # Константы
 MIN_BET = 10
-COMMISSION = 0.10  # 10% комиссия
-SOLO_TIMER = 15  # секунд на ответ в одиночном режиме
-MAX_CATS = 50  # максимальное количество котиков
-MAX_ATTEMPTS = 3  # попыток в дуэльном режиме
+COMMISSION = 0.10
+SOLO_TIMER = 15
+MAX_CATS = 50
+MAX_ATTEMPTS = 3
 
 # Хранилище активных игр
 active_cat_games = {}
@@ -28,26 +28,22 @@ class CatGame:
         self.bet = bet
         self.bot = bot
         self.is_active = True
-        self.mode = None  # "solo" или "duel"
+        self.mode = None
         self.message_id = None
         self.timer_task = None
         
-        # Для дуэли
         self.opponent_id = None
         self.opponent_name = None
         self.is_accepted = False
         self.accept_timer_task = None
         
-        # Котики
         self.cats = []
         self.yellow_count = 0
         self.black_count = 0
         
-        # Попытки
         self.creator_attempts = MAX_ATTEMPTS
         self.opponent_attempts = MAX_ATTEMPTS
         
-        # Результаты
         self.creator_guessed = False
         self.opponent_guessed = False
         self.solo_answered = False
@@ -61,7 +57,6 @@ class CatGame:
         self.yellow_count = yellow
         self.black_count = black
         
-        # Создаем список котиков в случайном порядке
         self.cats = ['🐈'] * yellow + ['🐈‍⬛'] * black
         random.shuffle(self.cats)
     
@@ -72,29 +67,7 @@ class CatGame:
             text += " ".join(self.cats[i:i+10]) + "\n"
         return text.strip()
     
-    def get_status_text(self) -> str:
-        """Статус игры"""
-        if self.mode == "solo":
-            attempts_text = ""
-        else:
-            attempts_text = (
-                f"\n\n🎯 Попытки:\n"
-                f"• @{self.creator_name}: {self.creator_attempts} попыток\n"
-                f"• @{self.opponent_name}: {self.opponent_attempts} попыток"
-            )
-        
-        return (
-            f"🐱 КОТИКИ\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"👤 @{self.creator_name}\n"
-            f"💰 Ставка: {self.bet} монет\n\n"
-            f"{self.get_cats_text()}\n\n"
-            f"❓ Сколько ЖЕЛТЫХ котиков? (🐈)"
-            f"{attempts_text}"
-        )
-    
     def get_mode_keyboard(self) -> InlineKeyboardMarkup:
-        """Клавиатура выбора режима"""
         return InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(text="🎮 Один", callback_data="cat_solo"),
@@ -103,7 +76,6 @@ class CatGame:
         ])
     
     def get_accept_keyboard(self) -> InlineKeyboardMarkup:
-        """Клавиатура принятия вызова"""
         return InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="✅ Принять вызов", callback_data="cat_accept")],
             [InlineKeyboardButton(text="❌ Отклонить", callback_data="cat_decline")]
@@ -112,6 +84,8 @@ class CatGame:
 async def finish_solo_game(chat_id: int):
     """Завершить одиночную игру по таймеру"""
     try:
+        await asyncio.sleep(SOLO_TIMER)
+        
         game = active_cat_games.get(chat_id)
         if not game or not game.is_active or game.mode != "solo":
             return
@@ -121,7 +95,6 @@ async def finish_solo_game(chat_id: int):
         
         game.is_active = False
         
-        # Игрок не успел ответить
         text = (
             f"🐱 КОТИКИ — ВРЕМЯ ВЫШЛО\n"
             f"━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -138,26 +111,7 @@ async def finish_solo_game(chat_id: int):
         
         del active_cat_games[chat_id]
     except Exception as e:
-        print(f"❌ Ошибка завершения соло игры: {e}")
-
-async def accept_timeout(chat_id: int):
-    """Таймер на принятие дуэли"""
-    await asyncio.sleep(60)
-    
-    if chat_id in active_cat_games and active_cat_games[chat_id].is_active and not active_cat_games[chat_id].is_accepted:
-        game = active_cat_games[chat_id]
-        game.is_active = False
-        await update_balance(db, game.creator_id, game.bet)
-        
-        await game.bot.send_message(
-            chat_id,
-            f"🐱 КОТИКИ — ОТМЕНЕНА\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"❌ Никто не принял вызов\n"
-            f"💰 Ставка возвращена: {game.bet} монет"
-        )
-        
-        del active_cat_games[chat_id]
+        print(f"❌ Ошибка завершения соло: {e}")
 
 # Команда "котики"
 @router.message(F.text.lower().startswith("котики"))
@@ -240,7 +194,7 @@ async def cats_callback(callback: CallbackQuery):
         # Режим "Один"
         if action == "solo":
             if user_id != game.creator_id:
-                await callback.answer("❌ Только создатель может выбрать режим!", show_alert=True)
+                await callback.answer("❌ Только создатель может выбрать!", show_alert=True)
                 return
             
             game.mode = "solo"
@@ -259,13 +213,14 @@ async def cats_callback(callback: CallbackQuery):
                 f"✏️ Напиши число в чат"
             )
             
+            # Запускаем таймер
             game.timer_task = asyncio.create_task(finish_solo_game(chat_id))
             return
         
         # Режим "С кем-то"
         if action == "duel":
             if user_id != game.creator_id:
-                await callback.answer("❌ Только создатель может выбрать режим!", show_alert=True)
+                await callback.answer("❌ Только создатель может выбрать!", show_alert=True)
                 return
             
             game.mode = "duel"
@@ -294,7 +249,6 @@ async def cats_callback(callback: CallbackQuery):
                 await callback.answer("❌ Нельзя играть с самим собой!", show_alert=True)
                 return
             
-            # Проверяем баланс
             opponent = await get_user(db, user_id)
             if not opponent:
                 await callback.answer("❌ Сначала пройди регистрацию!", show_alert=True)
@@ -304,7 +258,6 @@ async def cats_callback(callback: CallbackQuery):
                 await callback.answer("❌ Недостаточно монет!", show_alert=True)
                 return
             
-            # Списываем ставку
             await update_balance(db, user_id, -game.bet)
             
             game.opponent_id = user_id
@@ -330,7 +283,7 @@ async def cats_callback(callback: CallbackQuery):
             )
             return
         
-        # Отклонение дуэли
+        # Отклонение
         if action == "decline":
             if user_id == game.creator_id:
                 await callback.answer("❌ Только противник может отклонить!", show_alert=True)
@@ -357,10 +310,29 @@ async def cats_callback(callback: CallbackQuery):
         print(f"❌ Ошибка в котиках: {e}")
         await callback.answer("⚠️ Ошибка сервера", show_alert=True)
 
-# Обработка ответов игроков
+async def accept_timeout(chat_id: int):
+    """Таймер на принятие дуэли"""
+    await asyncio.sleep(60)
+    
+    if chat_id in active_cat_games and active_cat_games[chat_id].is_active and not active_cat_games[chat_id].is_accepted:
+        game = active_cat_games[chat_id]
+        game.is_active = False
+        await update_balance(db, game.creator_id, game.bet)
+        
+        await game.bot.send_message(
+            chat_id,
+            f"🐱 КОТИКИ — ОТМЕНЕНА\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"❌ Никто не принял вызов\n"
+            f"💰 Ставка возвращена: {game.bet} монет"
+        )
+        
+        del active_cat_games[chat_id]
+
+# Обработка ответов (числа)
 @router.message(F.text.regexp(r'^\d+$'))
 async def cats_answer(message: Message):
-    """Обработка ответа с числом"""
+    """Обработка числового ответа"""
     try:
         chat_id = message.chat.id
         game = active_cat_games.get(chat_id)
@@ -368,7 +340,6 @@ async def cats_answer(message: Message):
         if not game or not game.is_active:
             return
         
-        # Проверяем, что игра уже началась (есть котики)
         if not game.cats:
             return
         
@@ -394,7 +365,6 @@ async def cats_answer(message: Message):
                 game.timer_task.cancel()
             
             if answer == game.yellow_count:
-                # Победа
                 win_amount = int(game.bet * 1.8 * (1 - COMMISSION))
                 await update_balance(db, user_id, win_amount)
                 await update_stats(db, user_id, "cat", True)
@@ -410,7 +380,6 @@ async def cats_answer(message: Message):
                     f"💰 Выигрыш: +{win_amount} монет"
                 )
             else:
-                # Поражение
                 await update_stats(db, user_id, "cat", False)
                 
                 text = (
@@ -436,7 +405,6 @@ async def cats_answer(message: Message):
             if user_id not in [game.creator_id, game.opponent_id]:
                 return
             
-            # Проверяем попытки
             if user_id == game.creator_id:
                 if game.creator_attempts <= 0 or game.creator_guessed:
                     return
@@ -444,9 +412,7 @@ async def cats_answer(message: Message):
                 if game.opponent_attempts <= 0 or game.opponent_guessed:
                     return
             
-            # Проверяем ответ
             if answer == game.yellow_count:
-                # Победа!
                 game.is_active = False
                 winner_id = user_id
                 winner_name = message.from_user.username or message.from_user.first_name
@@ -472,7 +438,6 @@ async def cats_answer(message: Message):
                 del active_cat_games[chat_id]
                 return
             else:
-                # Неверный ответ
                 if user_id == game.creator_id:
                     game.creator_attempts -= 1
                     attempts_left = game.creator_attempts
@@ -482,9 +447,7 @@ async def cats_answer(message: Message):
                     attempts_left = game.opponent_attempts
                     player_name = game.opponent_name
                 
-                # Проверяем, не закончились ли попытки у обоих
                 if game.creator_attempts <= 0 and game.opponent_attempts <= 0:
-                    # Ничья
                     game.is_active = False
                     await update_balance(db, game.creator_id, game.bet)
                     await update_balance(db, game.opponent_id, game.bet)
@@ -502,7 +465,6 @@ async def cats_answer(message: Message):
                     del active_cat_games[chat_id]
                     return
                 
-                # Продолжаем игру
                 await message.answer(
                     f"❌ @{player_name}: {answer} — неверно!\n"
                     f"🎯 Осталось попыток: {attempts_left}"
